@@ -1,14 +1,14 @@
 # Security Policy
 
-## Supported Releases
+## Scope
 
-This repository currently supports security fixes on the `main` branch only.
+Security fixes are made on the `main` branch, which is what the hosted Tokens surfaces are deployed from. Reports affecting the hosted API/website or the code in this repository are in scope.
 
 ## Reporting A Vulnerability
 
 Do not open a public GitHub issue for security reports.
 
-Use GitHub's private vulnerability reporting flow for this repository when it is enabled. If that is unavailable, contact the repository maintainers privately and include:
+Report privately via GitHub's [private vulnerability reporting](https://github.com/solana-foundation/tokens/security/advisories/new) for this repository. Please include:
 
 - A clear description of the issue
 - The affected paths, endpoints, or packages

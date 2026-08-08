@@ -1,15 +1,15 @@
 # Contributing to Tokens
 
-This repository is a multi-app monorepo published as a reference codebase. Contributions should preserve the separation between public product surfaces, platform APIs, and operational tooling.
+This repository is the live, multi-app monorepo behind Tokens, and contributions are welcome. Changes should preserve the separation between public product surfaces, the platform API, and authenticated operational tooling.
 
-Issue triage and pull request review are best-effort. Opening an issue or PR does not imply a maintainer response SLA or a commitment to support self-hosted deployments.
+We triage issues and review pull requests on a regular cadence. We can't promise a fixed response time, but issues and PRs are read — please be patient and feel free to bump a stale thread. For anything security-sensitive, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ## Getting Started
 
 1. Fork and clone the repository.
 
 ```bash
-git clone https://github.com/your-username/tokens.git
+git clone https://github.com/<your-username>/tokens.git
 cd tokens
 ```
 

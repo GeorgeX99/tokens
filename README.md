@@ -1,39 +1,29 @@
 # Tokens
 
-Tokens is the public source repository for the Tokens website, API, docs, and first-party operational apps.
+Tokens is the open-source monorepo for the Tokens website, API, docs, and services. This is the live repository the project is developed and deployed from — it is not a mirror or a snapshot.
 
-This repository is published as a reference codebase for transparency and inspection. The hosted Tokens product surfaces are the primary supported way to use Tokens. Turnkey self-hosting, production deployment support, and active community operations are not currently offered as part of this repository.
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
-## What Is Supported
+## Scope
 
-Supported:
-
-- Browsing the codebase and API implementation details
-- Building the monorepo locally
-- Inspecting the public API and docs behavior
-- Best-effort issue triage and PR review
-
-Not promised:
-
-- Turnkey self-hosting
-- Production deployment guidance for third parties
-- Maintainer response SLAs
-- Full support for internal or operational apps outside the hosted Tokens environment
+- The code here powers the hosted Tokens product; the hosted surfaces remain the easiest way to *use* Tokens.
+- Self-hosting a full production deployment is possible but not yet documented end to end — the app code, database schema (`db/`), and infrastructure (`terraform/`) are all here, but you will need to supply your own credentials and infrastructure.
+- `apps/admin` and the operational apps are authenticated maintainer tooling, not anonymous public surfaces.
 
 ## Repo Surfaces
 
-| Surface      | Role                                                | Public posture                                              |
-| ------------ | --------------------------------------------------- | ----------------------------------------------------------- |
-| `apps/web`         | Public product website and lightweight proxy routes | Hosted-first product surface                                |
-| `apps/docs`        | Public API documentation site                       | Hosted-first product surface                                |
-| `apps/api`         | Tokens platform API (`/v1/...`) and helper routes   | Public API implementation                                   |
-| `apps/app`         | First-party dashboard for API keys and usage        | Reference app for authenticated users                       |
-| `apps/admin`       | Operational tooling for curated asset management    | Maintainer-only surface, not anonymous public functionality |
-| `apps/cloudrun-*`  | Backend services (assets, prices, usage, admin)     | Cloud Run services behind the API                           |
-| `packages/*`       | Shared packages and UI primitives                   | Internal/shared monorepo packages                           |
-| `db/`              | SQL schema and ordered migrations                   | Postgres (Cloud SQL) schema                                 |
-| `terraform/`       | Infrastructure-as-code for staging/production       | Reference infra definitions                                 |
-| `scripts`          | Verification, seeding, and maintenance utilities    | Maintainer tooling                                          |
+| Surface      | Role                                                | Deployment                                       |
+| ------------ | --------------------------------------------------- | ------------------------------------------------ |
+| `apps/web`         | Public product website and lightweight proxy routes | Vercel                                     |
+| `apps/docs`        | Public API documentation site                       | Vercel                                     |
+| `apps/api`         | Tokens platform API (`/v1/...`) and helper routes   | Vercel                                     |
+| `apps/app`         | First-party dashboard for API keys and usage        | Vercel                                     |
+| `apps/admin`       | Authenticated tooling for curated asset management  | Vercel (authenticated maintainer surface)  |
+| `apps/cloudrun-*`  | Backend services (assets, prices, usage, admin)     | GCP Cloud Run                              |
+| `packages/*`       | Shared packages and UI primitives                   | Consumed by the apps                       |
+| `db/`              | SQL schema and ordered migrations                   | Postgres (Cloud SQL)                       |
+| `terraform/`       | Live infrastructure-as-code for staging/production  | GCP (applied by CI)                        |
+| `scripts`          | Verification, seeding, and maintenance utilities    | Local / CI tooling                         |
 
 ## Architecture
 
@@ -104,17 +94,16 @@ bun run verify:api-health-routes
 bun run audit:deps
 ```
 
-## Verification And Release Gates
+## Verification And Releases
 
-- Read [TESTING.md](TESTING.md) for the current automated and manual verification bar.
-- Read [RELEASING.md](RELEASING.md) before making the repository public or cutting a public release.
+- Read [TESTING.md](TESTING.md) for what CI runs and what to run locally before opening a PR.
+- Read [RELEASING.md](RELEASING.md) for how changes promote from staging to production, and how to roll back.
 - Review [SECURITY.md](SECURITY.md) before reporting vulnerabilities.
 
-## Security And OSS Hygiene
+## Security And Hygiene
 
 - Local env files such as `.env.local` are ignored and must never be committed.
-- Assistant/tooling artifacts such as `.claude`, `.cursor`, and `.agents` are not part of the public source tree.
-- Git history must be reviewed before publication; current-tree hygiene alone is not sufficient.
+- Never commit credentials, secrets, or personal data. `bun run check:repo-hygiene` enforces the basics in CI.
 
 ## License
 

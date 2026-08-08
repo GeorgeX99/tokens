@@ -5,9 +5,8 @@
 ### Fonts
 
 This repository does not vendor third-party font binaries in the source tree.
-Previously bundled local font files were removed as part of OSS-readiness cleanup
-so the public repository does not rely on unclear redistribution terms for
-vendored typography assets.
+The repository does not rely on unclear redistribution terms for vendored typography
+assets; fonts are loaded at build/runtime rather than committed as binaries.
 
 ### Logos and brand marks
 

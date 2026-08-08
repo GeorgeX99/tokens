@@ -1,69 +1,53 @@
 # Releasing
 
-Use this checklist before making the repository public or treating a revision as an OSS-ready release.
+How changes ship to staging and production, and how to roll back. There is no
+manual version/tag step — `main` is the release branch, and merging is the release.
 
-## Publication Checklist
+## How a change ships
 
-- Confirm current-tree hygiene passes.
+1. Open a PR. CI (`CI`, `Security`, `React Doctor`) runs on the PR; a `terraform/**`
+   change also posts a `terraform plan` comment.
+2. Merge to `main`. On push to `main`:
+   - **`deploy.yml`** deploys the Vercel apps (`tokens-api`, `tokens-app`) to staging,
+     runs a staging smoke check, then promotes to production and runs a production
+     canary. If the canary fails it auto-rolls-back the affected Vercel alias.
+   - **`tokens-web` and `tokens-docs`** deploy via Vercel's native Git integration on
+     the same push.
+   - **`terraform.yml`** applies infra changes (staging, then production) when
+     `terraform/**` changed.
+   - **`grafana-push.yml`** syncs dashboards, alert rules, and notification policies
+     when those paths changed.
+3. Watch the `deploy.yml` run and the Slack deploy channel through the canary.
 
-    ```bash
-    bun run check:repo-hygiene
-    ```
+## Deploying a single Cloud Run service
 
-- Confirm automated verification passes.
+Use the **`cloudrun-deploy.yml`** workflow (`workflow_dispatch`) with `env` (`stg`/`prd`)
+and `service` (`assets`/`prices`/`usage`/`admin`) — e.g. to redeploy one backend service
+without a full pipeline run.
 
-    ```bash
-    bun run verify:api-health-routes
-    bun run lint
-    bun run build
-    bun run audit:deps
-    ```
+## Rolling back
 
-- Run a full git-history secret scan.
+- **Vercel (web/api/app):** run **`rollback.yml`** (`workflow_dispatch`). It repoints the
+  production alias to the previous READY deployment. `deploy.yml` also auto-rolls-back on a
+  failed production canary.
+- **Cloud Run:** redeploy the last-good image via `cloudrun-deploy.yml`, or roll traffic
+  back to the previous revision in the Cloud Run console.
+- **Terraform:** revert the offending change on `main` and let `terraform.yml` re-apply.
 
-    ```bash
-    gitleaks git --redact --verbose
-    ```
+## Before you merge
 
-- Review historical tracked paths for sensitive material, including:
-    - `.env*` files other than committed examples
-    - assistant/tooling artifacts such as `.claude`, `.cursor`, and `.agents`
-    - internal notes or operational material that should not be public
-    - stray binary junk such as `.DS_Store`
+```bash
+bun run check:repo-hygiene
+bun run verify:api-health-routes
+bun run lint
+bun run build
+bun run audit:deps
+```
 
-    Example helper command:
+## Do Not Deploy If
 
-    ```bash
-    git log --all --name-only --format= | sort -u | rg '(^|/)(\.env($|\.)|\.claude($|/)|\.cursor($|/)|\.agents($|/)|\.DS_Store$)'
-    ```
-
-- Review tags and long-lived branches before publication.
-
-    ```bash
-    git tag --list
-    git branch -a --format='%(refname:short)'
-    ```
-
-- If any sensitive credential or private operational material appears in history:
-    - rotate the credential first
-    - decide whether history rewrite is required before publication
-    - document that decision and approval in the release notes or internal change record
-
-- Confirm the legal posture is still accurate:
-    - `LICENSE` matches the intended public repository owner
-    - `THIRD_PARTY_LICENSES.md` reflects any vendored third-party assets
-    - no new bundled assets with unclear redistribution terms were added
-
-- Confirm public docs are still accurate:
-    - `README.md` still describes the repo as reference-only
-    - `CONTRIBUTING.md` still reflects best-effort review posture
-    - `SECURITY.md` still points reporters away from public issues
-
-- Confirm repository visibility change or release publication has explicit owner approval.
-
-## Do Not Publish If
-
-- `gitleaks` reports unresolved secrets
-- history review finds material that still needs rotation or rewrite
-- proprietary or unclear-license assets remain vendored in-tree
-- CI is red or the release checklist has open items
+- CI is red on the PR, or the `terraform plan` shows unexpected destroys.
+- `gitleaks` (the `Security` workflow) reports an unresolved secret.
+- A new bundled asset has unclear redistribution terms (see `THIRD_PARTY_LICENSES.md`).
+- The change touches auth, the platform-API proxy, or credentials without review from a
+  maintainer familiar with that surface.
