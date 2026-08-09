@@ -50,9 +50,14 @@ jobs:
 
   plan:
     needs: fmt-validate
-    # Skip on fork PRs: they cannot mint the GCP OIDC token (id-token: write) and
-    # only get a read-only GITHUB_TOKEN, so the plan + PR-comment steps would fail.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    # Skip on fork PRs (can't mint the GCP OIDC token / only get a read-only
+    # GITHUB_TOKEN) and on Dependabot PRs (an action-version bump touches this
+    # workflow file and would otherwise fire a prod/stg plan, contending on the
+    # shared Terraform state lock across the batch of Dependabot PRs).
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
