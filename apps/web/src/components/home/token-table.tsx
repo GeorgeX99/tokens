@@ -105,6 +105,23 @@ const ETF_TABLE_VARIANT: TokenTableVariantConfig = {
     defaultSorting: [{ id: 'volume24hUSD', desc: true }],
 };
 
+const MEMECOINS_TABLE_VARIANT: TokenTableVariantConfig = {
+    id: 'memecoins',
+    columns: {
+        showRank: false,
+        showPrice: true,
+        showPriceChange1h: true,
+        showPriceChange24h: true,
+        showChart24h: true,
+        showVolume1hUSD: false,
+        showVolume24hUSD: true,
+        showLiquidityUSD: true,
+        showTrade1h: false,
+    },
+    // Highest volume first
+    defaultSorting: [{ id: 'volume24hUSD', desc: true }],
+};
+
 const TOKEN_TABLE_VARIANTS: Record<string, TokenTableVariantConfig> = {
     trending: {
         id: 'trending:fresh',
@@ -207,6 +224,7 @@ const TOKEN_TABLE_VARIANTS: Record<string, TokenTableVariantConfig> = {
         // Highest volume first
         defaultSorting: [{ id: 'volume24hUSD', desc: true }],
     },
+    memecoins: MEMECOINS_TABLE_VARIANT,
     metals: {
         id: 'metals',
         columns: {
@@ -558,6 +576,7 @@ function createColumns(variant: TokenTableVariantConfig, trendingWindow: Trendin
                                   symbol={token.symbol}
                                   emptyText="no chart data available"
                                   fallbackDays={INLINE_CHART_FALLBACK_DAYS}
+                                  preferDexscreener={token.category === 'memecoin'}
                               />
                           </div>
                       );
@@ -640,6 +659,10 @@ function useTokenRowNavigation(variant: TokenTableVariantConfig, categoryId: str
     );
 
     function getRowHref(token: Token): string {
+        // Memecoins aren't in the canonical registry (live DexScreener discoveries),
+        // so they get their own dedicated detail route instead of `/[name]`.
+        if (categoryId === 'memecoins') return `/memecoin/${encodeURIComponent(token.address)}`;
+
         const assetId = token.assetId?.trim() || null;
         const coingeckoId = assetId ? null : resolveCoinGeckoIdForToken(token);
         const routeName = assetId ?? coingeckoId;

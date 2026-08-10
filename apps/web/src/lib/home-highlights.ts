@@ -1,7 +1,7 @@
 import type { CuratedTokenListIdWithoutLsts } from '@/lib/curated-token-lists';
 import type { Token } from '@/lib/types';
 
-export type HomeTabId = 'trending' | CuratedTokenListIdWithoutLsts;
+export type HomeTabId = 'trending' | 'memecoins' | CuratedTokenListIdWithoutLsts;
 
 export interface HomeHighlightCard {
     id: string;

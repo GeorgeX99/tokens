@@ -4,7 +4,12 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { parseAsStringEnum, useQueryState } from 'nuqs';
 
 import { HomeCategoryPathNuqsAdapter, HOME_CATEGORY_PARAM_KEY } from '@/hooks/use-home-category-path-nuqs-adapter';
-import { useCuratedTokens, useTrendingTokens, type TrendingMode } from '@/hooks/queries/use-token-search';
+import {
+    useCuratedTokens,
+    useMemecoinTokens,
+    useTrendingTokens,
+    type TrendingMode,
+} from '@/hooks/queries/use-token-search';
 import type { CuratedTokenListIdWithoutLsts } from '@/lib/curated-token-lists';
 import type { HomeTabId } from '@/lib/home-highlights';
 import type { Token, TrendingWindow } from '@/lib/types';
@@ -75,20 +80,22 @@ function HomeTokensProviderInner({ categories, initialCategoryId, initialTokens,
     const activeCategoryId = activeCategory?.id ?? initialCategoryId;
 
     const isTrending = activeCategoryId === 'trending';
+    const isMemecoins = activeCategoryId === 'memecoins';
 
     // Seed react-query with the SSR snapshot for the initial category only. `initialData`
     // is only consumed when the cache entry is empty, and `initialDataUpdatedAt` lets the
     // hooks' normal staleTime drive revalidation instead of pinning the snapshot forever.
     // The SSR trending fetch always uses the default 'fresh' mode, so only that query is seeded.
-    const seedCurated = !isTrending && activeCategoryId === initialCategoryId;
+    const seedCurated = !isTrending && !isMemecoins && activeCategoryId === initialCategoryId;
     const seedTrending = isTrending && initialCategoryId === 'trending' && trendingMode === 'fresh';
+    const seedMemecoins = isMemecoins && initialCategoryId === 'memecoins';
 
     const {
         data: fetchedTokens = [],
         isLoading,
         error,
     } = useCuratedTokens(activeCategoryId as CuratedTokenListIdWithoutLsts, {
-        enabled: Boolean(activeCategoryId) && !isTrending,
+        enabled: Boolean(activeCategoryId) && !isTrending && !isMemecoins,
         ...(seedCurated ? { initialData: initialTokens, initialDataUpdatedAt: initialFetchedAt } : {}),
     });
 
@@ -102,9 +109,18 @@ function HomeTokensProviderInner({ categories, initialCategoryId, initialTokens,
         ...(seedTrending ? { initialData: initialTokens, initialDataUpdatedAt: initialFetchedAt } : {}),
     });
 
-    const tokens = isTrending ? fetchedTrendingTokens : fetchedTokens;
-    const activeError = isTrending ? trendingError : error;
-    const activeIsLoading = isTrending ? isTrendingLoading : isLoading;
+    const {
+        data: fetchedMemecoinTokens = [],
+        isLoading: isMemecoinsLoading,
+        error: memecoinsError,
+    } = useMemecoinTokens({
+        enabled: isMemecoins,
+        ...(seedMemecoins ? { initialData: initialTokens, initialDataUpdatedAt: initialFetchedAt } : {}),
+    });
+
+    const tokens = isTrending ? fetchedTrendingTokens : isMemecoins ? fetchedMemecoinTokens : fetchedTokens;
+    const activeError = isTrending ? trendingError : isMemecoins ? memecoinsError : error;
+    const activeIsLoading = isTrending ? isTrendingLoading : isMemecoins ? isMemecoinsLoading : isLoading;
 
     const setActiveCategoryId = useCallback(
         (id: HomeTabId) => {

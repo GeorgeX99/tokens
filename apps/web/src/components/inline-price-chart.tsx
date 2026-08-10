@@ -22,6 +22,8 @@ interface InlinePriceChartProps {
      * Useful for assets that don't trade continuously (e.g. tokenized equities on weekends).
      */
     fallbackDays?: number;
+    /** Prefer DexScreener-reconstructed candles (memecoins not in the platform OHLCV cache). */
+    preferDexscreener?: boolean;
 }
 
 interface ScrubIndicator {
@@ -162,6 +164,7 @@ function useInlinePriceChartData({
     address,
     fallbackDays,
     hasEnteredView,
+    preferDexscreener,
 }: {
     assetId?: string;
     coingeckoId?: string;
@@ -169,6 +172,7 @@ function useInlinePriceChartData({
     address: string;
     fallbackDays?: number;
     hasEnteredView: boolean;
+    preferDexscreener: boolean;
 }) {
     const PRIMARY_INTERVAL = '15m' as const;
     const FALLBACK_INTERVAL = '1H' as const;
@@ -237,10 +241,16 @@ function useInlinePriceChartData({
         enabled: shouldEnableAssetExtended,
     });
 
-    const mintQuery = useOHLCV(address, PRIMARY_INTERVAL, DAYS, { enabled: hasEnteredView && !shouldUseAssetApi });
+    const mintQuery = useOHLCV(address, PRIMARY_INTERVAL, DAYS, {
+        enabled: hasEnteredView && !shouldUseAssetApi,
+        preferDexscreener,
+    });
     const shouldEnableMintFallback =
         hasEnteredView && !shouldUseAssetApi && !mintQuery.isLoading && (mintQuery.data?.length ?? 0) === 0;
-    const mintFallbackQuery = useOHLCV(address, FALLBACK_INTERVAL, DAYS, { enabled: shouldEnableMintFallback });
+    const mintFallbackQuery = useOHLCV(address, FALLBACK_INTERVAL, DAYS, {
+        enabled: shouldEnableMintFallback,
+        preferDexscreener,
+    });
 
     const primaryData = shouldUseCanonical ? canonicalQuery.data : shouldUseAssetApi ? assetQuery.data : mintQuery.data;
     const fallbackData = shouldUseCanonical
@@ -383,6 +393,7 @@ export function InlinePriceChart({
     onScrub,
     emptyText = '—',
     fallbackDays,
+    preferDexscreener = false,
 }: InlinePriceChartProps) {
     const isPositive = percentChange24h >= 0;
     const rootRef = useRef<HTMLDivElement>(null);
@@ -416,6 +427,7 @@ export function InlinePriceChart({
         address,
         fallbackDays,
         hasEnteredView,
+        preferDexscreener,
     });
 
     const { points, windowSecs, firstTime, lastTime, lastValue } = useMemo(() => {

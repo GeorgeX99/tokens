@@ -306,6 +306,13 @@ export async function fetchTrendingTokens(mode: TrendingMode = 'fresh', signal?:
     return (data.trending ?? []).map(trendingResultToToken);
 }
 
+export async function fetchMemecoinTokens(signal?: AbortSignal): Promise<Token[]> {
+    const res = await fetch('/api/memecoins', { signal });
+    if (!res.ok) throw new Error(`Failed to load memecoins (${res.status})`);
+    const data = (await res.json()) as { tokens?: Token[] };
+    return data.tokens ?? [];
+}
+
 export async function fetchSearchTokens(query: string, signal?: AbortSignal): Promise<Token[]> {
     const params = new URLSearchParams({ q: query, limit: '20' });
     const data = await Effect.runPromise(
@@ -347,6 +354,20 @@ export function useTrendingTokens(options: TokensQueryOptions & { mode?: Trendin
         queryKey: ['tokens', 'trending', mode],
         queryFn: ({ signal }) => fetchTrendingTokens(mode, signal),
         staleTime: mode === 'fresh' ? 15 * 1000 : 30 * 1000,
+        placeholderData: keepPreviousData,
+        initialData,
+        initialDataUpdatedAt,
+        enabled,
+    });
+}
+
+export function useMemecoinTokens(options: TokensQueryOptions = {}) {
+    const { enabled = true, initialData, initialDataUpdatedAt } = options;
+
+    return useQuery<Token[]>({
+        queryKey: ['tokens', 'memecoins'],
+        queryFn: ({ signal }) => fetchMemecoinTokens(signal),
+        staleTime: 30 * 1000,
         placeholderData: keepPreviousData,
         initialData,
         initialDataUpdatedAt,

@@ -10,15 +10,14 @@ import {
 } from 'nuqs/adapters/custom';
 
 import { CURATED_LIST_ORDER_WITHOUT_LSTS, type CuratedTokenListIdWithoutLsts } from '@/lib/curated-token-lists';
+import type { HomeTabId } from '@/lib/home-highlights';
 
 export const HOME_CATEGORY_PARAM_KEY = 'category';
-
-type HomeTabId = 'trending' | CuratedTokenListIdWithoutLsts;
 
 function normalizeHomeCategoryId(raw: string): HomeTabId | null {
     const trimmed = raw.trim();
     if (!trimmed) return null;
-    if (trimmed === 'trending') return 'trending';
+    if (trimmed === 'trending' || trimmed === 'memecoins') return trimmed;
     const normalized = trimmed === 'stables' ? 'currencies' : trimmed;
     return CURATED_LIST_ORDER_WITHOUT_LSTS.includes(normalized as CuratedTokenListIdWithoutLsts)
         ? (normalized as CuratedTokenListIdWithoutLsts)

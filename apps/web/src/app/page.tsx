@@ -6,6 +6,7 @@ import { CategoryTabs, HighlightsSection, HomeTokensProvider } from '@/component
 import { SiteFooter } from '@/components/site-footer';
 import { fetchApiAppJsonOrNull } from '@/lib/api-app';
 import { CURATED_LIST_ORDER_WITHOUT_LSTS, type CuratedTokenListIdWithoutLsts } from '@/lib/curated-token-lists';
+import { fetchTrendingSolanaMemecoins } from '@/lib/dexscreener-memecoins';
 import { createHomeHighlights, type HomeTabId } from '@/lib/home-highlights';
 import { getTokenLogoURLWithSecondarySymbol } from '@/lib/logo-overrides';
 import type { Token } from '@/lib/types';
@@ -351,10 +352,12 @@ async function HomeTokensSection({ searchParams }: { searchParams: HomePageProps
     const requestedCategoryId: HomeTabId | null =
         normalizedCategoryParam === 'trending'
             ? 'trending'
-            : normalizedCategoryParam &&
-                CURATED_LIST_ORDER_WITHOUT_LSTS.includes(normalizedCategoryParam as CuratedTokenListIdWithoutLsts)
-              ? (normalizedCategoryParam as CuratedTokenListIdWithoutLsts)
-              : null;
+            : normalizedCategoryParam === 'memecoins'
+              ? 'memecoins'
+              : normalizedCategoryParam &&
+                  CURATED_LIST_ORDER_WITHOUT_LSTS.includes(normalizedCategoryParam as CuratedTokenListIdWithoutLsts)
+                ? (normalizedCategoryParam as CuratedTokenListIdWithoutLsts)
+                : null;
 
     // The rendered category ids always come from CURATED_LIST_ORDER_WITHOUT_LSTS (the
     // upstream list meta only customizes display names), so the default is synchronous.
@@ -404,14 +407,16 @@ async function HomeTokensSection({ searchParams }: { searchParams: HomePageProps
     const initialTokens =
         initialCategoryId === 'trending'
             ? await fetchTrendingTokens()
-            : (allListTokens[CURATED_LIST_ORDER_WITHOUT_LSTS.indexOf(initialCategoryId)] ?? []);
+            : initialCategoryId === 'memecoins'
+              ? await fetchTrendingSolanaMemecoins()
+              : (allListTokens[CURATED_LIST_ORDER_WITHOUT_LSTS.indexOf(initialCategoryId)] ?? []);
 
     return (
         <>
             <HighlightsSection cards={highlights} />
 
             <HomeTokensProvider
-                categories={[...categories, { id: 'trending', name: 'Trending' }]}
+                categories={[...categories, { id: 'trending', name: 'Trending' }, { id: 'memecoins', name: 'Memecoins' }]}
                 initialCategoryId={initialCategoryId}
                 initialTokens={initialTokens}
             >
@@ -457,7 +462,7 @@ function HomeTokensFallback() {
                 <div className="mx-auto max-w-7xl px-4 md:px-6">
                     <div className="mb-4 flex items-center justify-between gap-3">
                         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-hidden pb-2 -mb-2">
-                            {Array.from({ length: CURATED_LIST_ORDER_WITHOUT_LSTS.length + 1 }, (_, index) => (
+                            {Array.from({ length: CURATED_LIST_ORDER_WITHOUT_LSTS.length + 2 }, (_, index) => (
                                 <Skeleton key={index} className="h-10 w-24 shrink-0 rounded-full bg-gray-100" />
                             ))}
                         </div>

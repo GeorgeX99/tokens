@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
     },
     // PostHog reverse proxy configuration
     async rewrites() {
-        const homeCategoryRoutes = ['majors', 'currencies', 'rwas', 'etfs', 'metals', 'stocks'] as const;
+        const homeCategoryRoutes = ['majors', 'currencies', 'rwas', 'etfs', 'metals', 'stocks', 'memecoins'] as const;
         const homeCategoryRewrites = homeCategoryRoutes.flatMap(route => [
             { source: `/${route}`, destination: `/?category=${route}` },
             { source: `/${route}/`, destination: `/?category=${route}` },
