@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.5",
-    "@tanstack/pacer": "^0.19.0",
+    "@tanstack/pacer": "^0.21.1",
     "@tokens/asset-registry": "workspace:*",
     "@tokens/effect": "workspace:*",
     "@tokens/token-risk-helpers": "workspace:*",
