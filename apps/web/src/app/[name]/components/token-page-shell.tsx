@@ -5,7 +5,6 @@ import { cn } from '@tokens/ui/cn';
 import { TokenBreadcrumb } from '@/app/token/[address]/components/token-breadcrumb';
 import { SwapProvidersDropdown } from '@/app/token/[address]/components/swap-providers-dropdown';
 import { ExpandableText } from '@/components/expandable-text';
-import { FloatingMarketFeedPageContext } from '@/components/floating-market-feed-context';
 import { SiteFooter } from '@/components/site-footer';
 
 export interface TokenPageBackgroundBlurProps {
@@ -26,8 +25,6 @@ export interface TokenPageSidebarProps {
     buyLogoURI?: string;
     displayName: string;
     description: string | null;
-    tokenFeedCoinId?: string;
-    tokenFeedTerms?: string[];
 }
 
 export function TokenPageSidebar({
@@ -36,40 +33,27 @@ export function TokenPageSidebar({
     buyLogoURI,
     displayName,
     description,
-    tokenFeedCoinId,
-    tokenFeedTerms,
 }: TokenPageSidebarProps) {
     return (
-        <>
-            <div className="space-y-8">
-                {buyAddress && (
-                    <div className="hidden lg:sticky lg:top-24 lg:z-20 lg:block">
-                        <SwapProvidersDropdown
-                            buyAddress={buyAddress}
-                            buyName={displayName}
-                            buySymbol={buySymbol}
-                            buyLogoURI={buyLogoURI}
-                        />
-                    </div>
-                )}
+        <div className="space-y-8">
+            {description && description.trim().length > 0 && (
+                <section>
+                    <h2 className="text-balance text-title-sm text-text-extra-high mb-4">About {displayName}</h2>
+                    <ExpandableText text={description} />
+                </section>
+            )}
 
-                {description && description.trim().length > 0 && (
-                    <section>
-                        <h2 className="text-balance text-title-sm text-text-extra-high mb-4">About {displayName}</h2>
-                        <ExpandableText text={description} />
-                    </section>
-                )}
-            </div>
-
-            <FloatingMarketFeedPageContext
-                displayName={displayName}
-                tokenLogoURI={buyLogoURI}
-                tokenSymbol={buySymbol}
-                tokenFeedCoinId={tokenFeedCoinId}
-                tokenFeedTerms={tokenFeedTerms}
-                hasMobileBottomBar={Boolean(buyAddress)}
-            />
-        </>
+            {buyAddress && (
+                <div className="hidden lg:sticky lg:top-24 lg:z-20 lg:block">
+                    <SwapProvidersDropdown
+                        buyAddress={buyAddress}
+                        buyName={displayName}
+                        buySymbol={buySymbol}
+                        buyLogoURI={buyLogoURI}
+                    />
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -79,12 +63,16 @@ export interface TokenPageScaffoldProps {
     displayName: string;
     breadcrumbCanonicalHref?: string;
     breadcrumbVariantSymbol?: string;
+    /** Hide the Tokens › Name breadcrumb (e.g. home-as-token-page). */
+    hideBreadcrumb?: boolean;
     buyAddress: string | null;
     buySymbol?: string;
     buyLogoURI?: string;
     header: ReactNode;
     sidebar: ReactNode;
     children: ReactNode;
+    /** Full-width band between the token grid and the footer (e.g. memecoins table). */
+    belowGrid?: ReactNode;
 }
 
 export function TokenPageScaffold({
@@ -93,28 +81,35 @@ export function TokenPageScaffold({
     displayName,
     breadcrumbCanonicalHref,
     breadcrumbVariantSymbol,
+    hideBreadcrumb = false,
     buyAddress,
     buySymbol,
     buyLogoURI,
     header,
     sidebar,
     children,
+    belowGrid,
 }: TokenPageScaffoldProps) {
     return (
         <main className="min-h-dvh bg-gradient-to-b from-white via-white to-white relative overflow-x-hidden">
             {viewedEvent}
             {background}
 
-            <TokenBreadcrumb
-                displayName={displayName}
-                canonicalHref={breadcrumbCanonicalHref}
-                variantSymbol={breadcrumbVariantSymbol}
-            />
+            {hideBreadcrumb ? (
+                <div className="relative z-10 mt-24" aria-hidden />
+            ) : (
+                <TokenBreadcrumb
+                    displayName={displayName}
+                    canonicalHref={breadcrumbCanonicalHref}
+                    variantSymbol={breadcrumbVariantSymbol}
+                />
+            )}
 
             <div
                 className={cn(
                     'mx-auto max-w-7xl px-6 pt-0 relative z-10',
                     buyAddress ? 'pb-20 lg:pb-6' : 'pb-4 md:pb-6',
+                    hideBreadcrumb && 'pt-6',
                 )}
             >
                 {header}
@@ -124,6 +119,8 @@ export function TokenPageScaffold({
                     <div className="lg:col-span-4 lg:self-stretch">{sidebar}</div>
                 </div>
             </div>
+
+            {belowGrid ? <div className="relative z-10">{belowGrid}</div> : null}
 
             <section className="relative z-10 border-t border-gray-1400/10">
                 <div className={cn('mx-auto max-w-7xl px-6', buyAddress && 'pb-28 lg:pb-0')}>

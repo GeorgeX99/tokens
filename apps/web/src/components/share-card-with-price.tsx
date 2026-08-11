@@ -151,7 +151,7 @@ export function ShareCardWithPrice({
                     className="font-semibold"
                     style={{ fontSize: 35, color: 'rgba(28,28,29,0.72)', lineHeight: 1.17 }}
                 >
-                    Tokens.xyz
+                    SPL Token
                 </span>
             </div>
         </div>

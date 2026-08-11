@@ -14,6 +14,11 @@ interface UseInlineLatestCloseArgs {
      * When provided, we’ll also consider the extended (1H, N days) OHLCV query.
      */
     fallbackDays?: number;
+    /** Must match `InlinePriceChart`'s `days`. Defaults to 1 (24h). */
+    days?: number;
+    primaryInterval?: TimeInterval;
+    fallbackInterval?: TimeInterval;
+    preferDexscreener?: boolean;
 }
 
 function normalizeText(value: string | null | undefined): string {
@@ -23,7 +28,7 @@ function normalizeText(value: string | null | undefined): string {
 function getExtendedDays(fallbackDays: number | undefined, baseDays: number): number | null {
     if (typeof fallbackDays !== 'number' || !Number.isFinite(fallbackDays)) return null;
     if (fallbackDays <= baseDays) return null;
-    return Math.min(90, Math.max(baseDays + 1, Math.floor(fallbackDays)));
+    return Math.min(90, Math.max(baseDays + 1e-9, fallbackDays));
 }
 
 function pickLatestClose(data: OHLCVData[] | undefined): number | null {
@@ -60,13 +65,17 @@ export function useInlineLatestClose({
     address,
     useCanonicalAssetChart = false,
     fallbackDays,
+    days = 1,
+    primaryInterval = '15m',
+    fallbackInterval = '1H',
+    preferDexscreener = false,
 }: UseInlineLatestCloseArgs): number | null {
     const queryClient = useQueryClient();
 
     const { queryKeys, keyIdSet } = useMemo(() => {
-        const PRIMARY_INTERVAL: TimeInterval = '15m';
-        const FALLBACK_INTERVAL: TimeInterval = '1H';
-        const DAYS = 1;
+        const PRIMARY_INTERVAL: TimeInterval = primaryInterval;
+        const FALLBACK_INTERVAL: TimeInterval = fallbackInterval;
+        const DAYS = Number.isFinite(days) && days > 0 ? days : 1;
 
         const normalizedAddress = normalizeText(address);
         const normalizedAssetId = normalizeText(assetId ?? undefined);
@@ -74,6 +83,7 @@ export function useInlineLatestClose({
         const shouldUseCanonical = shouldUseAssetApi && useCanonicalAssetChart;
 
         const extendedDays = getExtendedDays(fallbackDays, DAYS);
+        const dexTag = preferDexscreener ? 'dex' : 'platform';
 
         const keys: QueryKey[] = shouldUseCanonical
             ? [
@@ -101,13 +111,22 @@ export function useInlineLatestClose({
                         : []),
                 ]
               : [
-                    ['ohlcv', normalizedAddress, PRIMARY_INTERVAL, DAYS],
-                    ['ohlcv', normalizedAddress, FALLBACK_INTERVAL, DAYS],
+                    ['ohlcv', normalizedAddress, PRIMARY_INTERVAL, DAYS, dexTag],
+                    ['ohlcv', normalizedAddress, FALLBACK_INTERVAL, DAYS, dexTag],
                 ];
 
         const ids = new Set(keys.map(getQueryKeyId));
         return { queryKeys: keys, keyIdSet: ids };
-    }, [address, assetId, fallbackDays, useCanonicalAssetChart]);
+    }, [
+        address,
+        assetId,
+        days,
+        fallbackDays,
+        fallbackInterval,
+        preferDexscreener,
+        primaryInterval,
+        useCanonicalAssetChart,
+    ]);
 
     const subscribe = useCallback(
         (onStoreChange: () => void) => {

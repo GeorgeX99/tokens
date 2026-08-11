@@ -4,6 +4,7 @@ import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 import { useAssetOHLCV } from '@/hooks/queries/use-asset-ohlcv';
 import { useAssetPriceChart } from '@/hooks/queries/use-asset-price-chart';
 import { useOHLCV } from '@/hooks/queries/use-ohlcv';
+import type { TimeInterval } from '@/lib/birdeye';
 import { Liveline, type LivelinePoint } from 'liveline';
 
 interface InlinePriceChartProps {
@@ -24,6 +25,19 @@ interface InlinePriceChartProps {
     fallbackDays?: number;
     /** Prefer DexScreener-reconstructed candles (memecoins not in the platform OHLCV cache). */
     preferDexscreener?: boolean;
+    /** Visible / fetch window length in days. Defaults to 1 (24h). */
+    days?: number;
+    /** Override candle intervals for short windows (e.g. memecoin 5M/1H). */
+    primaryInterval?: TimeInterval;
+    fallbackInterval?: TimeInterval;
+    /**
+     * When history is shorter than `days`, shrink the chart window to the candle
+     * span so the line stretches edge-to-edge (new / thin tokens).
+     * Defaults to true.
+     */
+    fitWindowToData?: boolean;
+    /** Live tip: append / update the latest price point as it ticks. */
+    realtimePoint?: { time: number; value: number } | null;
 }
 
 interface ScrubIndicator {
@@ -165,6 +179,9 @@ function useInlinePriceChartData({
     fallbackDays,
     hasEnteredView,
     preferDexscreener,
+    days = 1,
+    primaryInterval = '15m',
+    fallbackInterval = '1H',
 }: {
     assetId?: string;
     coingeckoId?: string;
@@ -173,17 +190,19 @@ function useInlinePriceChartData({
     fallbackDays?: number;
     hasEnteredView: boolean;
     preferDexscreener: boolean;
+    days?: number;
+    primaryInterval?: TimeInterval;
+    fallbackInterval?: TimeInterval;
 }) {
-    const PRIMARY_INTERVAL = '15m' as const;
-    const FALLBACK_INTERVAL = '1H' as const;
-    const DAYS = 1;
+    const PRIMARY_INTERVAL = primaryInterval;
+    const FALLBACK_INTERVAL = fallbackInterval;
+    const DAYS = Number.isFinite(days) && days > 0 ? days : 1;
     const EXTENDED_DAYS =
         typeof fallbackDays === 'number' && Number.isFinite(fallbackDays) && fallbackDays > DAYS
-            ? Math.min(90, Math.max(DAYS + 1, Math.floor(fallbackDays)))
+            ? Math.min(90, Math.max(DAYS + 1e-9, fallbackDays))
             : null;
 
-    // Fetch 1 day of data with 15-minute candles for smooth inline charts.
-    // Fallback to 1H if 15m isn’t available in the DB cache yet.
+    // Fetch the selected window; fall back to a coarser interval if primary is empty.
     const normalizedAssetId = assetId?.trim() ?? '';
     const shouldUseAssetApi = normalizedAssetId.length > 0;
     const normalizedCoinId = (coingeckoId ?? '').trim();
@@ -194,7 +213,11 @@ function useInlinePriceChartData({
     });
 
     const shouldEnableCanonicalFallback =
-        hasEnteredView && shouldUseCanonical && !canonicalQuery.isLoading && (canonicalQuery.data?.length ?? 0) === 0;
+        hasEnteredView &&
+        shouldUseCanonical &&
+        FALLBACK_INTERVAL !== PRIMARY_INTERVAL &&
+        !canonicalQuery.isLoading &&
+        (canonicalQuery.data?.length ?? 0) === 0;
     const canonicalFallbackQuery = useAssetPriceChart(normalizedAssetId, FALLBACK_INTERVAL, DAYS, {
         enabled: shouldEnableCanonicalFallback,
     });
@@ -220,6 +243,7 @@ function useInlinePriceChartData({
         hasEnteredView &&
         shouldUseAssetApi &&
         !shouldUseCanonical &&
+        FALLBACK_INTERVAL !== PRIMARY_INTERVAL &&
         !assetQuery.isLoading &&
         (assetQuery.data?.length ?? 0) === 0;
     const assetFallbackQuery = useAssetOHLCV(normalizedAssetId, FALLBACK_INTERVAL, DAYS, {
@@ -246,7 +270,11 @@ function useInlinePriceChartData({
         preferDexscreener,
     });
     const shouldEnableMintFallback =
-        hasEnteredView && !shouldUseAssetApi && !mintQuery.isLoading && (mintQuery.data?.length ?? 0) === 0;
+        hasEnteredView &&
+        !shouldUseAssetApi &&
+        FALLBACK_INTERVAL !== PRIMARY_INTERVAL &&
+        !mintQuery.isLoading &&
+        (mintQuery.data?.length ?? 0) === 0;
     const mintFallbackQuery = useOHLCV(address, FALLBACK_INTERVAL, DAYS, {
         enabled: shouldEnableMintFallback,
         preferDexscreener,
@@ -284,7 +312,7 @@ function useInlinePriceChartData({
             (!primaryHasData && !fallbackHasData && assetExtendedQuery.isLoading)
           : mintQuery.isLoading || (!primaryHasData && mintFallbackQuery.isLoading);
 
-    return { ohlcvData, isLoading, normalizedAssetId };
+    return { ohlcvData, isLoading, normalizedAssetId, days: DAYS };
 }
 
 function useChartScrub({
@@ -394,6 +422,11 @@ export function InlinePriceChart({
     emptyText = '—',
     fallbackDays,
     preferDexscreener = false,
+    days = 1,
+    primaryInterval = '15m',
+    fallbackInterval = '1H',
+    fitWindowToData = true,
+    realtimePoint = null,
 }: InlinePriceChartProps) {
     const isPositive = percentChange24h >= 0;
     const rootRef = useRef<HTMLDivElement>(null);
@@ -420,7 +453,7 @@ export function InlinePriceChart({
         return () => observer.disconnect();
     }, []);
 
-    const { ohlcvData, isLoading, normalizedAssetId } = useInlinePriceChartData({
+    const { ohlcvData, isLoading, normalizedAssetId, days: resolvedDays } = useInlinePriceChartData({
         assetId,
         coingeckoId,
         useCanonicalAssetChart,
@@ -428,9 +461,31 @@ export function InlinePriceChart({
         fallbackDays,
         hasEnteredView,
         preferDexscreener,
+        days,
+        primaryInterval,
+        fallbackInterval,
     });
 
+    const requestedWindowSecs = Math.max(60, resolvedDays * 24 * 60 * 60);
+    const isLive = Boolean(
+        realtimePoint &&
+            Number.isFinite(realtimePoint.time) &&
+            Number.isFinite(realtimePoint.value) &&
+            realtimePoint.value > 0,
+    );
+
+    // Re-pin the tip to wall-clock each second while live; otherwise Liveline's
+    // advancing `now` leaves empty space on the right between price polls.
+    const [liveClock, setLiveClock] = useState(0);
+    useEffect(() => {
+        if (!isLive) return;
+        setLiveClock(Date.now());
+        const id = window.setInterval(() => setLiveClock(Date.now()), 1_000);
+        return () => window.clearInterval(id);
+    }, [isLive]);
+
     const { points, windowSecs, firstTime, lastTime, lastValue } = useMemo(() => {
+        const nowSec = Math.floor((liveClock || Date.now()) / 1000);
         const raw: Array<{ time: number; value: number }> = [];
         for (const point of ohlcvData ?? []) {
             if (point && typeof point.time === 'number' && typeof point.close === 'number' && point.close > 0) {
@@ -439,35 +494,82 @@ export function InlinePriceChart({
         }
         raw.sort((a, b) => a.time - b.time);
 
+        // Merge live tip into the series (append or replace last bucket).
+        // Pin tip time to "now" so Liveline keeps the dot on the right edge between polls.
+        if (
+            realtimePoint &&
+            Number.isFinite(realtimePoint.time) &&
+            Number.isFinite(realtimePoint.value) &&
+            realtimePoint.value > 0
+        ) {
+            const tip = {
+                time: Math.max(Math.floor(realtimePoint.time), nowSec),
+                value: realtimePoint.value,
+            };
+            const last = raw.at(-1);
+            if (!last) {
+                raw.push(tip);
+            } else if (tip.time > last.time) {
+                raw.push(tip);
+            } else {
+                // Same or older bucket — update the tip value in place.
+                raw[raw.length - 1] = { time: Math.max(last.time, tip.time), value: tip.value };
+            }
+        }
+
         if (raw.length < 2) {
+            const span = raw.length === 1 ? 1 : requestedWindowSecs;
             return {
                 points: raw,
-                windowSecs: 60,
+                windowSecs: fitWindowToData ? Math.max(1, span) : requestedWindowSecs,
                 firstTime: raw[0]?.time ?? null,
                 lastTime: raw.at(-1)?.time ?? null,
                 lastValue: raw.at(-1)?.value ?? null,
             };
         }
 
-        const nowSec = Math.floor(Date.now() / 1000);
         const lastRawTime = raw.at(-1)!.time;
-        const offset = nowSec - lastRawTime;
+        // Keep the tip on "now" so live draws toward the right edge.
+        const offset = Math.max(0, nowSec - lastRawTime);
         const shifted = raw.map(p => ({ time: p.time + offset, value: p.value }));
-        const span = shifted.at(-1)!.time - shifted[0]!.time;
+
+        const fullFirst = shifted[0]!.time;
+        const fullLast = shifted.at(-1)!.time;
+        const fullSpan = Math.max(1, fullLast - fullFirst);
+
+        // Short history (new mint / thin candles): zoom window to the candle span so
+        // the line stretches edge-to-edge instead of sitting crushed on the right.
+        // Divide by (1 - buffer) so Liveline's right-side tip buffer doesn't leave a
+        // matching empty strip on the left.
+        const shouldFit = fitWindowToData && fullSpan < requestedWindowSecs * 0.98;
+        const series = shouldFit
+            ? shifted
+            : (() => {
+                  const cutoff = nowSec - requestedWindowSecs;
+                  const inWindow = shifted.filter(p => p.time >= cutoff);
+                  return inWindow.length >= 2 ? inWindow : shifted;
+              })();
+
+        const first = series[0]!.time;
+        const last = series.at(-1)!.time;
+        const dataSpan = Math.max(1, last - first);
+        const nextWindowSecs = shouldFit
+            ? Math.max(1, dataSpan / (1 - LIVELINE_NO_BADGE_WINDOW_BUFFER))
+            : requestedWindowSecs;
 
         return {
-            points: shifted,
-            windowSecs: Math.max(60, span),
-            firstTime: shifted[0]!.time,
-            lastTime: shifted.at(-1)!.time,
-            lastValue: shifted.at(-1)!.value,
+            points: series,
+            windowSecs: nextWindowSecs,
+            firstTime: first,
+            lastTime: last,
+            lastValue: series.at(-1)!.value,
         };
-    }, [ohlcvData]);
+    }, [fitWindowToData, liveClock, ohlcvData, realtimePoint, requestedWindowSecs]);
 
     const isScrubbable = Boolean(onScrub);
     const lineColor = isPositive ? '#10b981' : '#ef4444';
     const shouldShowLoading = isLoading && points.length < 2;
-    const livelineRenderKey = `${normalizedAssetId || address}:${shouldShowLoading ? 'loading' : points.length >= 2 ? 'data' : 'empty'}`;
+    const livelineRenderKey = `${normalizedAssetId || address}:${resolvedDays}:${primaryInterval}:${isLive ? 'live' : 'paused'}:${shouldShowLoading ? 'loading' : points.length >= 2 ? 'data' : 'empty'}`;
 
     const {
         chartHostRef,
@@ -508,10 +610,11 @@ export function InlinePriceChart({
                         badge={false}
                         fill={false}
                         loading={shouldShowLoading}
-                        pulse={false}
+                        pulse={isLive}
                         momentum={false}
                         scrub={false}
-                        paused
+                        // Liveline freezes `data` while paused — must stay unpaused for live tips.
+                        paused={!isLive}
                         exaggerate
                         padding={CHART_PADDING}
                         formatTime={() => ''}

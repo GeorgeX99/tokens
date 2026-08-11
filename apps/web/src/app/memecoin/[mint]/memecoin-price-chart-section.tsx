@@ -10,6 +10,7 @@ interface MemecoinPriceChartSectionProps {
     logoURI?: string;
     currentPrice?: number;
     priceChange24h?: number;
+    marketCap?: number | null;
 }
 
 const MintPriceChart = dynamic(() => import('@/components/mint-price-chart').then(m => m.MintPriceChart), {
@@ -24,6 +25,7 @@ export function MemecoinPriceChartSection({
     logoURI,
     currentPrice,
     priceChange24h,
+    marketCap,
 }: MemecoinPriceChartSectionProps) {
     return (
         <MintPriceChart
@@ -33,6 +35,7 @@ export function MemecoinPriceChartSection({
             logoURI={logoURI}
             currentPrice={currentPrice}
             priceChange24h={priceChange24h}
+            marketCap={marketCap}
         />
     );
 }

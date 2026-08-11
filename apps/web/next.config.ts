@@ -38,18 +38,26 @@ const nextConfig: NextConfig = {
     },
     // PostHog reverse proxy configuration
     async rewrites() {
-        const homeCategoryRoutes = ['majors', 'currencies', 'rwas', 'etfs', 'metals', 'stocks', 'memecoins'] as const;
-        const homeCategoryRewrites = homeCategoryRoutes.flatMap(route => [
-            { source: `/${route}`, destination: `/?category=${route}` },
-            { source: `/${route}/`, destination: `/?category=${route}` },
-        ]);
-
         return {
             beforeFiles: [
-                // Legacy: `/stables` → currencies
-                { source: '/stables', destination: '/?category=currencies' },
-                { source: '/stables/', destination: '/?category=currencies' },
-                ...homeCategoryRewrites,
+                // Emptied index: only memecoins remain as a home section.
+                { source: '/memecoins', destination: '/' },
+                { source: '/memecoins/', destination: '/' },
+                // Legacy category URLs collapse to home (Solana + $SPL + memecoins).
+                { source: '/majors', destination: '/' },
+                { source: '/majors/', destination: '/' },
+                { source: '/currencies', destination: '/' },
+                { source: '/currencies/', destination: '/' },
+                { source: '/stables', destination: '/' },
+                { source: '/stables/', destination: '/' },
+                { source: '/rwas', destination: '/' },
+                { source: '/rwas/', destination: '/' },
+                { source: '/etfs', destination: '/' },
+                { source: '/etfs/', destination: '/' },
+                { source: '/metals', destination: '/' },
+                { source: '/metals/', destination: '/' },
+                { source: '/stocks', destination: '/' },
+                { source: '/stocks/', destination: '/' },
             ],
             afterFiles: [
                 // Dev only: curated /logos/* assets live in apps/api's public dir.

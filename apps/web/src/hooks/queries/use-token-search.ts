@@ -3,6 +3,11 @@ import { Effect } from 'effect';
 import { apiJson } from '@/effect/api-client';
 import type { Token } from '@/lib/types';
 import { getTokenLogoURLWithSecondarySymbol } from '@/lib/logo-overrides';
+import {
+    DEFAULT_MEMECOIN_TRENDING_DURATION,
+    type MemecoinTrendingDuration,
+} from '@/lib/memecoin-trending';
+import { looksLikeSolanaMintAddress } from '@/lib/solana-address';
 import type { CuratedTokenListId } from '@tokens/asset-registry/compat';
 
 interface TokensQueryOptions {
@@ -306,8 +311,15 @@ export async function fetchTrendingTokens(mode: TrendingMode = 'fresh', signal?:
     return (data.trending ?? []).map(trendingResultToToken);
 }
 
-export async function fetchMemecoinTokens(signal?: AbortSignal): Promise<Token[]> {
-    const res = await fetch('/api/memecoins', { signal });
+export async function fetchMemecoinTokens(
+    duration: MemecoinTrendingDuration = DEFAULT_MEMECOIN_TRENDING_DURATION,
+    signal?: AbortSignal,
+): Promise<Token[]> {
+    const res = await fetch(
+        // Initial memecoins tab load should be lightweight.
+        `/api/memecoins?page=1&limit=10&duration=${encodeURIComponent(duration)}`,
+        { signal },
+    );
     if (!res.ok) throw new Error(`Failed to load memecoins (${res.status})`);
     const data = (await res.json()) as { tokens?: Token[] };
     return data.tokens ?? [];
@@ -315,18 +327,15 @@ export async function fetchMemecoinTokens(signal?: AbortSignal): Promise<Token[]
 
 export async function fetchSearchTokens(query: string, signal?: AbortSignal): Promise<Token[]> {
     const params = new URLSearchParams({ q: query, limit: '20' });
-    const data = await Effect.runPromise(
-        apiJson<AssetsSearchResponse>({ url: `/api/v1/assets/search?${params.toString()}` }),
-        {
-            signal,
-        },
-    );
-    const tokens = (data.results ?? []).map(assetResultToToken).filter((t): t is NonNullable<typeof t> => t !== null);
+    const res = await fetch(`/api/memecoins/lookup?${params.toString()}`, { signal, cache: 'no-store' });
+    if (!res.ok) throw new Error(`Failed to search tokens (${res.status})`);
+    const data = (await res.json()) as { tokens?: Token[] };
+    const tokens = data.tokens ?? [];
     const seen = new Set<string>();
     const unique: Token[] = [];
     for (const token of tokens) {
-        const key = (token.assetId ?? '').trim() || token.address;
-        if (seen.has(key)) continue;
+        const key = token.address.trim();
+        if (!key || seen.has(key)) continue;
         seen.add(key);
         unique.push(token);
     }
@@ -361,12 +370,19 @@ export function useTrendingTokens(options: TokensQueryOptions & { mode?: Trendin
     });
 }
 
-export function useMemecoinTokens(options: TokensQueryOptions = {}) {
-    const { enabled = true, initialData, initialDataUpdatedAt } = options;
+export function useMemecoinTokens(
+    options: TokensQueryOptions & { duration?: MemecoinTrendingDuration } = {},
+) {
+    const {
+        enabled = true,
+        duration = DEFAULT_MEMECOIN_TRENDING_DURATION,
+        initialData,
+        initialDataUpdatedAt,
+    } = options;
 
     return useQuery<Token[]>({
-        queryKey: ['tokens', 'memecoins'],
-        queryFn: ({ signal }) => fetchMemecoinTokens(signal),
+        queryKey: ['tokens', 'memecoins', duration],
+        queryFn: ({ signal }) => fetchMemecoinTokens(duration, signal),
         staleTime: 30 * 1000,
         placeholderData: keepPreviousData,
         initialData,
@@ -377,10 +393,14 @@ export function useMemecoinTokens(options: TokensQueryOptions = {}) {
 
 export function useSearchTokens(query: string, options: TokensQueryOptions = {}) {
     const { enabled = true } = options;
+    const trimmed = query.trim();
+    const isMint = looksLikeSolanaMintAddress(trimmed);
 
     return useQuery<Token[]>({
-        queryKey: ['tokens', 'search', query],
-        queryFn: ({ signal }) => fetchSearchTokens(query, signal),
-        enabled: enabled && query.length >= 2,
+        queryKey: ['tokens', 'search', 'memecoins', trimmed],
+        queryFn: ({ signal }) => fetchSearchTokens(trimmed, signal),
+        enabled: enabled && (isMint || trimmed.length >= 2),
+        staleTime: 15 * 1000,
+        placeholderData: keepPreviousData,
     });
 }

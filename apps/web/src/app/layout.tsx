@@ -3,25 +3,28 @@ import { Suspense } from 'react';
 import { Agentation } from 'agentation';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { Toaster } from 'sonner';
-import { FloatingMarketFeedProvider } from '@/components/floating-market-feed-context';
-import { FloatingMarketFeedLazy, MobileMarketBannerLazy } from '@/components/floating-market-feed-lazy';
 import { GoogleAnalytics } from '@/components/google-analytics';
 import { Header } from '@/components/header';
 import { QueryProvider } from '@/providers/query-provider';
 import { SearchVisibilityProvider } from '@/components/search-visibility-provider';
+import { SITE_DESCRIPTION } from '@/lib/site-brand';
 import './globals.css';
 
 const GA_MEASUREMENT_ID = process.env.NODE_ENV === 'production' ? 'G-CWCQMKEH99' : undefined;
 
 export const metadata: Metadata = {
-    title: 'Tokens | Solana Liquidity & Token Aggregator',
-    description:
-        'Aggregate liquidity and token data across Solana DEXs. Find the best prices, analyze token metrics, and discover new opportunities.',
+    title: {
+        default: 'SPL Token | $SPL',
+        template: '%s | SPL Token',
+    },
+    description: SITE_DESCRIPTION,
     icons: {
         icon: [
-            { url: '/favicon.ico', sizes: '32x32' },
-            { url: '/icon-light.svg', type: 'image/svg+xml', media: '(prefers-color-scheme: light)' },
-            { url: '/icon-dark.svg', type: 'image/svg+xml', media: '(prefers-color-scheme: dark)' },
+            // SVG first + sizes: 'any' so browsers that support vector favicons
+            // (Chrome/Firefox/Edge) render it crisp at every zoom/DPI instead of
+            // the fixed-resolution PNG, which the others fall back to.
+            { url: '/logos/SPL-Token.svg', type: 'image/svg+xml', sizes: 'any' },
+            { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
         ],
         apple: { url: '/apple-touch-icon.png', sizes: '180x180' },
     },
@@ -60,18 +63,14 @@ export default function RootLayout({
                 <Suspense fallback={null}>
                     <NuqsAdapter>
                         <QueryProvider>
-                            <FloatingMarketFeedProvider>
-                                <SearchVisibilityProvider>
-                                    <Header />
-                                    <MobileMarketBannerLazy />
-                                    {children}
-                                    <FloatingMarketFeedLazy />
-                                    <Toaster position="top-center" richColors closeButton />
-                                    {process.env.NODE_ENV === 'development' && (
-                                        <Agentation endpoint="http://localhost:4747" />
-                                    )}
-                                </SearchVisibilityProvider>
-                            </FloatingMarketFeedProvider>
+                            <SearchVisibilityProvider>
+                                <Header />
+                                {children}
+                                <Toaster position="top-center" richColors closeButton />
+                                {process.env.NODE_ENV === 'development' && (
+                                    <Agentation endpoint="http://localhost:4747" />
+                                )}
+                            </SearchVisibilityProvider>
                         </QueryProvider>
                     </NuqsAdapter>
                 </Suspense>

@@ -1,4 +1,10 @@
 import type { CuratedTokenListIdWithoutLsts } from '@/lib/curated-token-lists';
+import {
+    changeForDuration,
+    type MemecoinTrendingDuration,
+    tradesForDuration,
+    volumeForDuration,
+} from '@/lib/memecoin-trending';
 import type { Token } from '@/lib/types';
 
 export type HomeTabId = 'trending' | 'memecoins' | CuratedTokenListIdWithoutLsts;
@@ -7,10 +13,130 @@ export interface HomeHighlightCard {
     id: string;
     title: string;
     token: Token;
-    metric: 'price' | 'volume1h' | 'volume24h' | 'gainer24h';
+    metric: 'price' | 'marketCap' | 'volume1h' | 'volume24h' | 'gainer24h' | 'trades';
+    /** Optional override for integer metrics like trade count. */
+    metricValue?: number | null;
 }
 
 export type HomeHighlightCards = readonly [HomeHighlightCard, HomeHighlightCard, HomeHighlightCard];
+
+function durationLabel(duration: MemecoinTrendingDuration): string {
+    return duration.toUpperCase();
+}
+
+function pickExclusive(
+    tokens: readonly Token[],
+    usedAddresses: ReadonlySet<string>,
+    score: (token: Token) => number,
+): Token | null {
+    let best: Token | null = null;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const token of tokens) {
+        if (usedAddresses.has(token.address)) continue;
+        const next = score(token);
+        if (!Number.isFinite(next)) continue;
+        if (best == null || next > bestScore) {
+            best = token;
+            bestScore = next;
+        }
+    }
+    return best;
+}
+
+/**
+ * Memecoin highlight cards for the selected trending timeframe.
+ * Order: Trending Now → Biggest Gainer → Most Traded (exclusive mints, no duplicates).
+ */
+export function createMemecoinHighlights(
+    tokens: Token[],
+    duration: MemecoinTrendingDuration = '1h',
+): HomeHighlightCards {
+    const fallback = createFallbackToken();
+    const label = durationLabel(duration);
+
+    if (tokens.length === 0) {
+        return [
+            { id: `trending-now-${duration}`, title: `Trending Now (${label})`, token: fallback, metric: 'marketCap' },
+            {
+                id: `biggest-gainer-${duration}`,
+                title: `Biggest Gainer (${label})`,
+                token: fallback,
+                metric: 'gainer24h',
+            },
+            {
+                id: `most-traded-${duration}`,
+                title: `Most Traded (${label})`,
+                token: fallback,
+                metric: 'trades',
+                metricValue: 0,
+            },
+        ];
+    }
+
+    const used = new Set<string>();
+
+    const trendingNow = tokens[0] ?? fallback;
+    used.add(trendingNow.address);
+
+    const biggestGainer =
+        pickExclusive(tokens, used, token => changeForDuration(token, duration)) ??
+        pickExclusive(tokens, used, () => 1) ??
+        fallback;
+    used.add(biggestGainer.address);
+
+    // Prefer trade count for the window; if Dex has no txn data, fall back to volume.
+    const hasAnyTrades = tokens.some(token => tradesForDuration(token, duration) > 0);
+    const mostTraded =
+        pickExclusive(tokens, used, token =>
+            hasAnyTrades ? tradesForDuration(token, duration) : volumeForDuration(token, duration),
+        ) ??
+        pickExclusive(tokens, used, () => 1) ??
+        fallback;
+
+    const gainerToken: Token = {
+        ...biggestGainer,
+        priceChange24hPercent: changeForDuration(biggestGainer, duration),
+    };
+
+    const tradedCount = tradesForDuration(mostTraded, duration);
+    const tradedMetricValue = hasAnyTrades && tradedCount > 0 ? tradedCount : null;
+    const tradedCard: HomeHighlightCard =
+        tradedMetricValue != null
+            ? {
+                  id: `most-traded-${duration}`,
+                  title: `Most Traded (${label})`,
+                  token: mostTraded,
+                  metric: 'trades',
+                  metricValue: tradedMetricValue,
+              }
+            : {
+                  // Rare fallback when txn data is missing for the whole list.
+                  id: `most-active-${duration}`,
+                  title: `Most Active (${label})`,
+                  token: {
+                      ...mostTraded,
+                      volume24hUSD: volumeForDuration(mostTraded, duration),
+                      volume1hUSD: mostTraded.volume1hUSD,
+                  },
+                  metric: duration === '1h' ? 'volume1h' : 'volume24h',
+              };
+
+    return [
+        {
+            id: `trending-now-${duration}`,
+            title: `Trending Now (${label})`,
+            token: trendingNow,
+            metric: 'marketCap',
+        },
+        {
+            id: `biggest-gainer-${duration}`,
+            title: `Biggest Gainer (${label})`,
+            token: gainerToken,
+            metric: 'gainer24h',
+        },
+        tradedCard,
+    ];
+}
 
 /**
  * Global home highlights, computed across every curated asset (all lists combined) —

@@ -134,3 +134,48 @@ samp {
     -webkit-mask-image: none;
   }
 }
+
+/* Memecoins tab: a thin conic-gradient glaze that spins around the pill's own border. */
+@property --memecoin-tab-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes memecoin-tab-border-spin {
+  to {
+    --memecoin-tab-angle: 360deg;
+  }
+}
+
+.memecoin-tabs-root button:first-of-type {
+  position: relative;
+}
+
+.memecoin-tabs-root button:first-of-type::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 9999px;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--memecoin-tab-angle),
+    transparent 0deg,
+    rgba(153, 69, 255, 0.95) 70deg,
+    rgba(20, 241, 149, 0.95) 150deg,
+    transparent 230deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: memecoin-tab-border-spin 2.6s linear infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memecoin-tabs-root button:first-of-type::before {
+    animation: none;
+  }
+}

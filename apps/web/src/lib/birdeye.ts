@@ -37,7 +37,7 @@ export interface OHLCVData {
     volume: number;
 }
 
-export type TimeInterval = '1m' | '5m' | '15m' | '1H' | '4H' | '1D' | '1W';
+export type TimeInterval = '1s' | '1m' | '5m' | '15m' | '1H' | '4H' | '1D' | '1W';
 
 export interface TokenMarketToken {
     address: string;

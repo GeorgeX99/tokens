@@ -107,8 +107,11 @@ export function useOHLCV(address: string, interval: TimeInterval, days: number, 
         queryKey: ['ohlcv', normalizedAddress, interval, days, preferDexscreener ? 'dex' : 'platform'],
         queryFn: async ({ signal }) => {
             // Align timestamps so retries/remounts don't generate new URLs every second.
-            const now = alignEpochSeconds(Math.floor(Date.now() / 1000), 60);
-            const from = alignEpochSeconds(now - days * 24 * 60 * 60, 60);
+            // Fine memecoin windows (≤15m / 1s ticks) align to 1s; coarser to 60s.
+            const windowSecs = Math.max(1, days * 24 * 60 * 60);
+            const alignTo = windowSecs <= 15 * 60 || interval === '1s' ? 1 : 60;
+            const now = alignEpochSeconds(Math.floor(Date.now() / 1000), alignTo);
+            const from = alignEpochSeconds(now - Math.ceil(windowSecs), alignTo);
 
             if (preferDexscreener) {
                 return await fetchDexscreenerOhlcv(normalizedAddress, interval, from, now, signal);
@@ -126,5 +129,13 @@ export function useOHLCV(address: string, interval: TimeInterval, days: number, 
         },
         enabled: enabled && isValidAddress,
         retry: shouldRetryOhlcvQuery,
+        // History refresh — live tip comes from DexScreener 1s polling separately.
+        refetchInterval: query => {
+            if (!preferDexscreener) return false;
+            const empty = !query.state.data || query.state.data.length === 0;
+            if (empty) return 8_000;
+            if (interval === '1m' || interval === '1s') return 20_000;
+            return 45_000;
+        },
     });
 }

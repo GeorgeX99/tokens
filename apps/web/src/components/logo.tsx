@@ -1,5 +1,8 @@
+import Image from 'next/image';
 import { memo } from 'react';
 import { cn } from '@tokens/ui/cn';
+
+import { SITE_LOGO_SRC, SITE_NAME } from '@/lib/site-brand';
 
 interface LogoProps {
     className?: string;
@@ -7,34 +10,15 @@ interface LogoProps {
     height?: number;
 }
 
-const Logo = memo(({ className, width = 212, height = 212 }: LogoProps) => {
+const Logo = memo(({ className, width = 24, height = 24 }: LogoProps) => {
     return (
-        <svg
+        <Image
+            src={SITE_LOGO_SRC}
+            alt={SITE_NAME}
             width={width}
             height={height}
-            viewBox="0 0 212 212"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className={cn('', className)}
-        >
-            <path
-                d="M106 127.2C129.417 127.2 148.4 146.183 148.4 169.6C148.4 193.016 129.417 212 106 212C82.58 212 63.6 193.016 63.6 169.6C63.6 146.183 82.58 127.2 106 127.2ZM42.4 63.6C65.82 63.6 84.8 82.58 84.8 106C84.8 129.417 65.82 148.4 42.4 148.4C18.98 148.4 0 129.417 0 106C0 82.58 18.98 63.6 42.4 63.6ZM169.6 63.6C193.016 63.6 212 82.58 212 106C212 129.417 193.016 148.4 169.6 148.4C146.183 148.4 127.2 129.417 127.2 106C127.2 82.58 146.183 63.6 169.6 63.6ZM106 0C129.417 0 148.4 18.98 148.4 42.4C148.4 65.82 129.417 84.8 106 84.8C82.58 84.8 63.6 65.82 63.6 42.4C63.6 18.98 82.58 0 106 0Z"
-                fill="url(#paint0_linear_497_8865)"
-            />
-            <defs>
-                <linearGradient
-                    id="paint0_linear_497_8865"
-                    x1="106"
-                    y1="0"
-                    x2="106"
-                    y2="212"
-                    gradientUnits="userSpaceOnUse"
-                >
-                    <stop stopColor="#1C1C1D" />
-                    <stop offset="1" stopColor="#1C1C1D" stopOpacity="0.72" />
-                </linearGradient>
-            </defs>
-        </svg>
+            className={cn('object-contain', className)}
+        />
     );
 });
 

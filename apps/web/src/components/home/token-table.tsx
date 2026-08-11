@@ -17,14 +17,14 @@ import {
     type SortingState,
     type Table,
 } from '@tanstack/react-table';
-import { ChevronUp, ChevronDown, ChevronsUpDown, Info } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import type { Token, TrendingWindow } from '@/lib/types';
 import { cleanTokenName, getTokenLogoURLWithSecondarySymbol } from '@/lib/logo-overrides';
 import { normalizeLogoSrc } from '@/lib/normalize-logo-src';
 import { getWrapperGroupByAddress } from '@tokens/asset-registry/compat';
 import { getVariantByMint } from '@tokens/asset-registry';
 import { cn } from '@tokens/ui/cn';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@tokens/ui/tooltip';
+import { TooltipProvider } from '@tokens/ui/tooltip';
 import { IconTriangleFill } from 'symbols-react';
 
 const InlinePriceChart = dynamic(() => import('@/components/inline-price-chart').then(m => m.InlinePriceChart), {
@@ -43,6 +43,7 @@ interface TokenTableVariantConfig {
     columns: {
         showRank: boolean;
         showPrice: boolean;
+        showMarketCap: boolean;
         showPriceChange1h: boolean;
         showPriceChange24h: boolean;
         showChart24h: boolean;
@@ -59,6 +60,7 @@ const CURRENCIES_TABLE_VARIANT: TokenTableVariantConfig = {
     columns: {
         showRank: false,
         showPrice: true,
+        showMarketCap: false,
         showPriceChange1h: false,
         showPriceChange24h: false,
         showChart24h: false,
@@ -76,6 +78,7 @@ const RWA_TABLE_VARIANT: TokenTableVariantConfig = {
     columns: {
         showRank: false,
         showPrice: true,
+        showMarketCap: false,
         showPriceChange1h: false,
         showPriceChange24h: false,
         showChart24h: false,
@@ -93,6 +96,7 @@ const ETF_TABLE_VARIANT: TokenTableVariantConfig = {
     columns: {
         showRank: false,
         showPrice: true,
+        showMarketCap: false,
         showPriceChange1h: false,
         showPriceChange24h: true,
         showChart24h: true,
@@ -109,7 +113,8 @@ const MEMECOINS_TABLE_VARIANT: TokenTableVariantConfig = {
     id: 'memecoins',
     columns: {
         showRank: false,
-        showPrice: true,
+        showPrice: false,
+        showMarketCap: true,
         showPriceChange1h: true,
         showPriceChange24h: true,
         showChart24h: true,
@@ -128,6 +133,7 @@ const TOKEN_TABLE_VARIANTS: Record<string, TokenTableVariantConfig> = {
         columns: {
             showRank: true,
             showPrice: true,
+            showMarketCap: false,
             showPriceChange1h: true,
             showPriceChange24h: false,
             showChart24h: false,
@@ -143,6 +149,7 @@ const TOKEN_TABLE_VARIANTS: Record<string, TokenTableVariantConfig> = {
         columns: {
             showRank: true,
             showPrice: true,
+            showMarketCap: false,
             showPriceChange1h: true,
             showPriceChange24h: false,
             showChart24h: false,
@@ -158,6 +165,7 @@ const TOKEN_TABLE_VARIANTS: Record<string, TokenTableVariantConfig> = {
         columns: {
             showRank: true,
             showPrice: true,
+            showMarketCap: false,
             showPriceChange1h: true,
             showPriceChange24h: false,
             showChart24h: false,
@@ -173,6 +181,7 @@ const TOKEN_TABLE_VARIANTS: Record<string, TokenTableVariantConfig> = {
         columns: {
             showRank: false,
             showPrice: true,
+            showMarketCap: false,
             showPriceChange1h: false,
             showPriceChange24h: true,
             showChart24h: true,
@@ -189,6 +198,7 @@ const TOKEN_TABLE_VARIANTS: Record<string, TokenTableVariantConfig> = {
         columns: {
             showRank: false,
             showPrice: true,
+            showMarketCap: false,
             showPriceChange1h: false,
             showPriceChange24h: true,
             showChart24h: true,
@@ -213,6 +223,7 @@ const TOKEN_TABLE_VARIANTS: Record<string, TokenTableVariantConfig> = {
         columns: {
             showRank: false,
             showPrice: true,
+            showMarketCap: false,
             showPriceChange1h: false, // Stocks don't need 1h changes typically
             showPriceChange24h: true,
             showChart24h: true,
@@ -230,6 +241,7 @@ const TOKEN_TABLE_VARIANTS: Record<string, TokenTableVariantConfig> = {
         columns: {
             showRank: false,
             showPrice: true,
+            showMarketCap: false,
             showPriceChange1h: false,
             showPriceChange24h: true,
             showChart24h: true,
@@ -257,6 +269,7 @@ function getColumnWidth(columnId: string): string {
         case 'name':
             return '34%';
         case 'price':
+        case 'marketCap':
             return '120px';
         case 'priceChange1hPercent':
         case 'priceChange24hPercent':
@@ -365,17 +378,6 @@ function Volume24hCell({ token, showUnderlyingVolume = true }: { token: Token; s
     );
 }
 
-function Volume24hHeaderTooltipContent() {
-    return (
-        <div className="max-w-64">
-            <p>The main number is aggregate on-chain volume across available Solana variant markets.</p>
-            <p className="mt-1 text-white/80">
-                The smaller pill appears for crypto when CoinGecko volume differs from aggregate on-chain volume.
-            </p>
-        </div>
-    );
-}
-
 function formatInteger(value: number | null | undefined): string {
     if (value == null || !Number.isFinite(value)) return '—';
     return Math.round(value).toLocaleString();
@@ -457,9 +459,11 @@ function TokenLogo({ token }: { token: Token }) {
 
     const symbol = token.symbol || token.name || '??';
     const initials = symbol.slice(0, 2).toUpperCase();
+    // Memecoins / live Dex rows: prefer the remote logoURI. Symbol overrides often
+    // collide (e.g. "Don") and wipe the real mint image.
     const resolvedLogoURI = normalizeLogoSrc(
-        token.trendingRank != null && token.logoURI
-            ? token.logoURI
+        token.category === 'memecoin' || token.trendingRank != null
+            ? (token.logoURI ?? getTokenLogoURLWithSecondarySymbol(token.symbol, token.name, undefined))
             : getTokenLogoURLWithSecondarySymbol(token.symbol, token.name, token.logoURI),
     );
 
@@ -533,6 +537,16 @@ function createColumns(variant: TokenTableVariantConfig, trendingWindow: Trendin
             ? columnHelper.accessor('price', {
                   header: 'Price',
                   cell: info => <TokenTablePriceCell token={info.row.original} />,
+              })
+            : null,
+        variant.columns.showMarketCap
+            ? columnHelper.accessor('marketCap', {
+                  header: 'MCap',
+                  cell: info => (
+                      <span className="block w-full text-right text-[14px] text-[#2D2D2D] font-medium tabular-nums">
+                          {formatVolume(info.getValue())}
+                      </span>
+                  ),
               })
             : null,
         variant.columns.showPriceChange1h
@@ -729,7 +743,6 @@ function TokenTableHeader({ table }: { table: Table<Token> }) {
                         const isRank = header.column.id === 'rank';
                         const isName = isTokenNameColumn(header.column.id);
                         const isTrendingGroupEnd = isTrendingWindowGroupEndColumn(header.column.id);
-                        const isVolume24h = header.column.id === 'volume24hUSD';
                         const isLast = index === headerGroup.headers.length - 1;
 
                         return (
@@ -747,57 +760,7 @@ function TokenTableHeader({ table }: { table: Table<Token> }) {
                                     isTrendingGroupEnd && 'border-r border-border-light',
                                 )}
                             >
-                                {header.isPlaceholder ? null : isVolume24h ? (
-                                    <div className="inline-flex w-full min-w-0 items-center justify-end gap-1.5">
-                                        <button
-                                            type="button"
-                                            className={cn(
-                                                'inline-flex min-w-0 items-center justify-end gap-1 text-nowrap',
-                                                canSort &&
-                                                    'cursor-pointer hover:text-text-extra-high select-none',
-                                            )}
-                                            onClick={header.column.getToggleSortingHandler()}
-                                            disabled={!canSort}
-                                        >
-                                            <span>
-                                                {flexRender(
-                                                    header.column.columnDef.header,
-                                                    header.getContext(),
-                                                )}
-                                            </span>
-                                            {canSort && (
-                                                <span className="text-text-extra-low">
-                                                    {sortDirection === 'asc' ? (
-                                                        <ChevronUp className="h-4 w-4" />
-                                                    ) : sortDirection === 'desc' ? (
-                                                        <ChevronDown className="h-4 w-4" />
-                                                    ) : (
-                                                        <ChevronsUpDown className="h-3.5 w-3.5" />
-                                                    )}
-                                                </span>
-                                            )}
-                                        </button>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <button
-                                                    type="button"
-                                                    aria-label="About 24h Volume"
-                                                    onClick={event => event.stopPropagation()}
-                                                    className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-text-extra-low transition-colors hover:text-text-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-medium cursor-help"
-                                                >
-                                                    <Info className="size-3.5" aria-hidden />
-                                                </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent
-                                                side="top"
-                                                align="center"
-                                                className="max-w-64 rounded-xl bg-[#111111] px-3 py-2 text-xs leading-4 text-white shadow-[0_10px_30px_rgba(20,20,21,0.18)]"
-                                            >
-                                                <Volume24hHeaderTooltipContent />
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </div>
-                                ) : (
+                                {header.isPlaceholder ? null : (
                                     <button
                                         type="button"
                                         className={cn(
@@ -840,9 +803,16 @@ interface TokenTableProps {
     tokens: Token[];
     categoryId?: string;
     trendingWindow?: TrendingWindow;
+    /** Drop the large bottom page padding (e.g. when a Load more control sits under the table). */
+    flushBottom?: boolean;
 }
 
-export function TokenTable({ tokens, categoryId, trendingWindow = '1h' }: TokenTableProps) {
+export function TokenTable({
+    tokens,
+    categoryId,
+    trendingWindow = '1h',
+    flushBottom = false,
+}: TokenTableProps) {
     const variant = getTokenTableVariant(categoryId);
     const columns = React.useMemo(() => createColumns(variant, trendingWindow), [variant, trendingWindow]);
     const visibleTokens = React.useMemo(
@@ -919,7 +889,12 @@ export function TokenTable({ tokens, categoryId, trendingWindow = '1h' }: TokenT
 
     if (visibleTokens.length === 0) {
         return (
-            <section className="mx-auto max-w-7xl px-4 md:px-6 pb-12 md:pb-24">
+            <section
+                className={cn(
+                    'mx-auto max-w-7xl px-4 md:px-6',
+                    flushBottom ? 'pb-0' : 'pb-12 md:pb-24',
+                )}
+            >
                 <div className="bg-white rounded-[24px] md:rounded-[50px] border border-border-light shadow-[0_8px_40px_rgba(0,0,0,0.03)] p-6 md:p-12 text-center">
                     <p className="text-text-low text-[14px] md:text-[16px]">No tokens available</p>
                     <p className="text-text-extra-low text-[12px] md:text-[14px] mt-2">
@@ -932,7 +907,12 @@ export function TokenTable({ tokens, categoryId, trendingWindow = '1h' }: TokenT
 
     return (
         <TooltipProvider delayDuration={200}>
-            <section className="mx-auto max-w-7xl px-4 md:px-6 pb-12 md:pb-24">
+            <section
+                className={cn(
+                    'mx-auto max-w-7xl px-4 md:px-6',
+                    flushBottom ? 'pb-0' : 'pb-12 md:pb-24',
+                )}
+            >
                 <div className="bg-white rounded-[24px] border border-border-medium shadow-[0_8px_40px_rgba(0,0,0,0.03)] overflow-hidden">
                     <div className="overflow-x-auto">
                         <div ref={tableTopRef} />

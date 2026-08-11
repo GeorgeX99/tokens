@@ -18,6 +18,7 @@ interface AssetMarketSnapshot {
     trade24h?: number | null;
     uniqueWallet1h?: number | null;
     uniqueWallet24h?: number | null;
+    holders?: number | null;
     marketCap: number | null;
     /** Set to 'company' when marketCap is the underlying company's (price × shares outstanding). */
     marketCapSource?: 'company';
@@ -96,13 +97,15 @@ export function AssetStatsSection({ market, globalStats, mode = 'variant' }: Ass
     const totalSupply = isCanonical
         ? pickPositive(market?.totalSupply, globalStats?.totalSupply)
         : pickPositive(hasSolanaData ? market?.totalSupply : null, globalStats?.totalSupply);
+    const holders = pickPositive(market?.holders, null);
     const volume1h = pickPositive(market?.volume1hUSD, null);
     const trade1h = pickPositive(market?.trade1h, null);
     const trade24h = pickPositive(market?.trade24h, null);
     const uniqueWallet24h = pickPositive(market?.uniqueWallet24h, null);
     const lastTradeAt = pickPositive(market?.lastTradeAt, null);
     const asOf = pickPositive(market?.asOf, null);
-    const hasTradeMetrics = Boolean(volume1h ?? trade1h ?? trade24h ?? uniqueWallet24h ?? lastTradeAt ?? asOf);
+    // Don't open the third row just because asOf was set — that produced a wall of dashes.
+    const hasTradeMetrics = Boolean(volume1h ?? trade1h ?? trade24h ?? uniqueWallet24h ?? holders);
 
     const tooltips =
         mode === 'canonical'
@@ -110,28 +113,27 @@ export function AssetStatsSection({ market, globalStats, mode = 'variant' }: Ass
                   marketCap:
                       market?.marketCapSource === 'company'
                           ? 'Company market cap (stock price × shares outstanding).'
-                          : 'Market cap from aggregated variant data. Falls back to CoinGecko when unavailable.',
+                          : 'Market cap from aggregated variant data.',
                   liquidity: 'Aggregate liquidity across available Solana variant markets.',
                   volume24h:
                       'Aggregate 24h volume across available on-chain variant markets. For crypto and stock assets, supported canonical provider volume appears as a secondary pill.',
-                  price: 'Current price from aggregated variant data. Falls back to CoinGecko when unavailable.',
-                  priceChange24h:
-                      '24h price change from aggregated variant data. Falls back to CoinGecko when unavailable.',
-                  fdv: 'FDV from aggregated variant data. Falls back to CoinGecko when unavailable.',
-                  totalSupply: 'Total supply from aggregated variant data. Falls back to CoinGecko when unavailable.',
-                  supply: 'Circulating supply from aggregated variant data. Falls back to CoinGecko when unavailable.',
+                  price: 'Current price from aggregated variant data.',
+                  priceChange24h: '24h price change from aggregated variant data.',
+                  fdv: 'FDV from aggregated variant data.',
+                  totalSupply: 'Total supply from aggregated variant data.',
+                  supply: 'Circulating supply from aggregated variant data.',
+                  holders: 'Unique token holder accounts.',
               }
             : {
-                  marketCap: 'Market cap from Solana markets. Falls back to global data when Solana is unavailable.',
+                  marketCap: 'Market cap from Solana markets.',
                   liquidity: 'Liquidity in Solana DEX pools.',
-                  volume24h:
-                      'Volume on Solana DEX pools in the last 24 hours. Falls back to global data when Solana is unavailable.',
-                  price: 'Current price from Solana markets. Falls back to global data when Solana is unavailable.',
-                  priceChange24h:
-                      '24h price change from Solana markets. Falls back to global data when Solana is unavailable.',
-                  fdv: 'Fully diluted valuation from Birdeye. Falls back to global data when Solana is unavailable.',
-                  totalSupply: 'Total supply from Birdeye. Falls back to global data when Solana is unavailable.',
-                  supply: 'Circulating supply from Birdeye. Falls back to global data when Solana is unavailable.',
+                  volume24h: 'Volume on Solana DEX pools in the last 24 hours.',
+                  price: 'Current price from Solana markets.',
+                  priceChange24h: '24h price change from Solana markets.',
+                  fdv: 'Fully diluted valuation from Solana markets.',
+                  totalSupply: 'Total token supply.',
+                  supply: 'Circulating token supply.',
+                  holders: 'Unique token holder accounts.',
               };
 
     return (
@@ -169,14 +171,14 @@ export function AssetStatsSection({ market, globalStats, mode = 'variant' }: Ass
                 <div className="grid grid-cols-2 md:grid-cols-4 border-t border-border-light overflow-hidden [&>*]:border-border-light [&>*:nth-child(even)]:border-l md:[&>*:nth-child(n+2)]:border-l max-md:[&>*:nth-child(n+3)]:border-t">
                     <StatCard
                         label="1H Volume"
-                        tooltip="USD volume from direct stable-pair Solana trades in the last hour."
+                        tooltip="USD volume on Solana DEX pools in the last hour."
                         value={formatUsd(volume1h)}
                     />
                     <StatCard
                         label="1H Trades"
                         tooltip={
                             <TradeMetricTooltipContent lastTradeAt={lastTradeAt} asOf={asOf}>
-                                Successful direct stable-pair Solana trades in the last hour.
+                                Buy + sell transactions on Solana DEX pools in the last hour.
                             </TradeMetricTooltipContent>
                         }
                         value={formatInteger(trade1h)}
@@ -185,15 +187,19 @@ export function AssetStatsSection({ market, globalStats, mode = 'variant' }: Ass
                         label="24H Trades"
                         tooltip={
                             <TradeMetricTooltipContent lastTradeAt={lastTradeAt} asOf={asOf}>
-                                Successful direct stable-pair Solana trades in the last 24 hours.
+                                Buy + sell transactions on Solana DEX pools in the last 24 hours.
                             </TradeMetricTooltipContent>
                         }
                         value={formatInteger(trade24h)}
                     />
                     <StatCard
-                        label="24H Wallets"
-                        tooltip="Unique trader wallets in direct stable-pair Solana trades over the last 24 hours."
-                        value={formatInteger(uniqueWallet24h)}
+                        label={holders != null ? 'Holders' : '24H Wallets'}
+                        tooltip={
+                            holders != null
+                                ? tooltips.holders
+                                : 'Unique trader wallets in direct stable-pair Solana trades over the last 24 hours.'
+                        }
+                        value={formatInteger(holders ?? uniqueWallet24h)}
                     />
                 </div>
             ) : null}

@@ -37,6 +37,8 @@ export interface Token {
     price: number;
     priceChange24hPercent: number;
     priceChange1hPercent?: number;
+    priceChange5mPercent?: number;
+    priceChange6hPercent?: number;
     marketCap: number;
     lastTradeAt?: number;
     asOf?: number;

@@ -4,7 +4,6 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useState } from 'react';
 import { ArrowLeft, BookOpen } from 'lucide-react';
-import { FloatingMarketFeedPageContext } from '@/components/floating-market-feed-context';
 import { SiteFooter } from '@/components/site-footer';
 import { Logo } from '@/components/logo';
 
@@ -21,12 +20,6 @@ export function NotFoundContent() {
 
     return (
         <main className="min-h-dvh bg-background pt-24 text-text-extra-high">
-            <FloatingMarketFeedPageContext displayName="404" suppressFeed />
-            <style>{`
-                .tokens-floating-market-feed {
-                    display: none;
-                }
-            `}</style>
             <section className="mx-auto flex w-full max-w-[1120px] flex-col gap-8 px-6 pb-12 md:pt-4">
                 <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center">
                     <div className="inline-flex items-center gap-2 border border-border-light bg-background px-3 py-2 text-[length:var(--text-button-sm)] leading-none font-inter-semibold text-text-low">

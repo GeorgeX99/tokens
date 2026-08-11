@@ -1,9 +1,16 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
+import { Github } from 'lucide-react';
 import { FooterAsteroidsEasterEgg } from '@/app/assets-api/footer-asteroids-easter-egg';
 import { trackEvent } from '@/lib/posthog-client';
+import {
+    getSiteForkUrl,
+    getSiteXUrl,
+    getUpstreamRepoUrl,
+    SITE_NAME,
+    SPL_TOKEN_BASICS_URL,
+} from '@/lib/site-brand';
 import { Logo } from './logo';
 
 type FooterTone = 'dark' | 'light';
@@ -22,6 +29,9 @@ export function SiteFooter({ tone = 'dark', asteroidsOpen, onAsteroidsOpenChange
     const linkClass =
         "relative font-inter text-[length:var(--text-body-md-size)] leading-[var(--leading-normal)] text-text-high hover:text-text-extra-high transition-colors before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-['']";
     const canLaunchAsteroids = asteroidsOpen !== undefined && onAsteroidsOpenChange !== undefined;
+    const xUrl = getSiteXUrl();
+    const forkUrl = getSiteForkUrl();
+    const upstreamUrl = getUpstreamRepoUrl();
 
     return (
         <>
@@ -30,153 +40,134 @@ export function SiteFooter({ tone = 'dark', asteroidsOpen, onAsteroidsOpenChange
                     from { transform: rotate(0deg); }
                     to { transform: rotate(360deg); }
                 }
-                .footer-logo-hover-spin svg {
+                .footer-logo-hover-spin img {
                     transform-origin: 50% 50%;
-                    transform-box: fill-box;
                 }
-                .footer-logo-hover-spin:hover svg {
+                .footer-logo-hover-spin:hover img {
                     animation: footer-logo-hover-spin 700ms cubic-bezier(0.22, 1, 0.36, 1);
                 }
                 @media (prefers-reduced-motion: reduce) {
-                    .footer-logo-hover-spin:hover svg { animation: none; }
+                    .footer-logo-hover-spin:hover img { animation: none; }
                 }
             `}</style>
             <footer className="flex w-full flex-col items-start gap-10 py-11 md:flex-row md:items-start md:justify-between md:gap-0">
                 <div className="flex w-full flex-col items-start gap-10 md:w-auto md:flex-row md:gap-12 lg:gap-24">
                     <div className="flex flex-col items-start gap-6">
-                        <p className={labelClass}>Managed by</p>
-                        <SolanaFoundationMark tone={tone} />
+                        <p className={labelClass}>About</p>
+                        <div className="flex max-w-[280px] flex-col items-start gap-3">
+                            <p className="text-[13px] leading-relaxed text-text-medium">
+                                Everything on Solana is an SPL Token. Most of it is memecoins. $SPL is the default.
+                            </p>
+                            <a
+                                href={upstreamUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-border-medium bg-white px-2.5 py-1 text-[12px] font-medium text-text-high transition-colors hover:bg-gray-50"
+                                onClick={() =>
+                                    trackEvent('external_link_clicked', {
+                                        link_type: 'github_upstream',
+                                        link_url: upstreamUrl,
+                                        source: 'site_footer',
+                                    })
+                                }
+                            >
+                                <Github className="size-3.5 shrink-0" aria-hidden />
+                                Forked from solana-foundation/tokens
+                            </a>
+                        </div>
                     </div>
                     <div className="flex flex-col items-start gap-6">
-                        <p className={labelClass}>Socials</p>
+                        <p className={labelClass}>Explore</p>
                         <div className="flex flex-col items-start gap-3">
                             <Link
-                                href="https://x.com/tokens"
+                                href="/"
+                                className={linkClass}
+                                onClick={() =>
+                                    trackEvent('nav_link_clicked', {
+                                        destination: 'home',
+                                        link_url: '/',
+                                        source: 'site_footer',
+                                    })
+                                }
+                            >
+                                Home
+                            </Link>
+                            <Link
+                                href="/#memecoins"
+                                className={linkClass}
+                                onClick={() =>
+                                    trackEvent('nav_link_clicked', {
+                                        destination: 'memecoins',
+                                        link_url: '/#memecoins',
+                                        source: 'site_footer',
+                                    })
+                                }
+                            >
+                                Memecoins
+                            </Link>
+                            <Link
+                                href="/solana"
+                                className={linkClass}
+                                onClick={() =>
+                                    trackEvent('nav_link_clicked', {
+                                        destination: 'solana',
+                                        link_url: '/solana',
+                                        source: 'site_footer',
+                                    })
+                                }
+                            >
+                                Solana
+                            </Link>
+                        </div>
+                    </div>
+                    <div className="flex flex-col items-start gap-6">
+                        <p className={labelClass}>Socials & resources</p>
+                        <div className="flex flex-col items-start gap-3">
+                            <a
+                                href={xUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className={linkClass}
                                 onClick={() =>
                                     trackEvent('external_link_clicked', {
                                         link_type: 'x',
-                                        link_url: 'https://x.com/tokens',
+                                        link_url: xUrl,
                                         source: 'site_footer',
                                     })
                                 }
                             >
                                 X
-                            </Link>
-                            <Link
-                                href="https://solana.com"
-                                className={linkClass}
-                                onClick={() =>
-                                    trackEvent('external_link_clicked', {
-                                        link_type: 'website',
-                                        link_url: 'https://solana.com',
-                                        source: 'site_footer',
-                                    })
-                                }
-                            >
-                                Solana Website
-                            </Link>
-                        </div>
-                    </div>
-                    <div className="flex flex-col items-start gap-6">
-                        <p className={labelClass}>Tokens</p>
-                        <div className="flex flex-col items-start gap-3">
-                            <Link
-                                href="/partners"
-                                className={linkClass}
-                                onClick={() =>
-                                    trackEvent('nav_link_clicked', {
-                                        destination: 'partners',
-                                        link_url: '/partners',
-                                        source: 'site_footer',
-                                    })
-                                }
-                            >
-                                Partners
-                            </Link>
-                            <Link
-                                href="/status"
-                                className={linkClass}
-                                onClick={() =>
-                                    trackEvent('nav_link_clicked', {
-                                        destination: 'status',
-                                        link_url: '/status',
-                                        source: 'site_footer',
-                                    })
-                                }
-                            >
-                                Status
-                            </Link>
-                            <Link
-                                href="https://docs.tokens.xyz"
+                            </a>
+                            <a
+                                href={SPL_TOKEN_BASICS_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className={linkClass}
                                 onClick={() =>
                                     trackEvent('external_link_clicked', {
                                         link_type: 'docs',
-                                        link_url: 'https://docs.tokens.xyz',
+                                        link_url: SPL_TOKEN_BASICS_URL,
                                         source: 'site_footer',
                                     })
                                 }
                             >
-                                Documentation
-                            </Link>
-                            <Link
-                                href="https://github.com/solana-foundation"
+                                SPL Token basics
+                            </a>
+                            <a
+                                href={forkUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className={linkClass}
                                 onClick={() =>
                                     trackEvent('external_link_clicked', {
                                         link_type: 'github',
-                                        link_url: 'https://github.com/solana-foundation',
+                                        link_url: forkUrl,
                                         source: 'site_footer',
                                     })
                                 }
                             >
-                                Github
-                            </Link>
-                            <Link
-                                href="https://t.me/solana"
-                                className={linkClass}
-                                onClick={() =>
-                                    trackEvent('external_link_clicked', {
-                                        link_type: 'telegram',
-                                        link_url: 'https://t.me/solana',
-                                        source: 'site_footer',
-                                    })
-                                }
-                            >
-                                Telegram
-                            </Link>
-                        </div>
-                    </div>
-                    <div className="flex flex-col items-start gap-6">
-                        <p className={labelClass}>Legal</p>
-                        <div className="flex flex-col items-start gap-3">
-                            <Link
-                                href="/terms"
-                                className={linkClass}
-                                onClick={() =>
-                                    trackEvent('nav_link_clicked', {
-                                        destination: 'terms',
-                                        link_url: '/terms',
-                                        source: 'site_footer',
-                                    })
-                                }
-                            >
-                                Terms
-                            </Link>
-                            <Link
-                                href="/privacy-policy"
-                                className={linkClass}
-                                onClick={() =>
-                                    trackEvent('nav_link_clicked', {
-                                        destination: 'privacy_policy',
-                                        link_url: '/privacy-policy',
-                                        source: 'site_footer',
-                                    })
-                                }
-                            >
-                                Privacy Policy
-                            </Link>
+                                Github fork
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -185,8 +176,8 @@ export function SiteFooter({ tone = 'dark', asteroidsOpen, onAsteroidsOpenChange
                 ) : (
                     <Link
                         href="/"
-                        aria-label="Tokens home"
-                        className="footer-logo-hover-spin inline-flex size-6 shrink-0 items-center justify-center rounded-full outline-none transition-transform duration-150 focus-visible:ring-2 focus-visible:ring-black/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 md:self-start"
+                        aria-label={`${SITE_NAME} home`}
+                        className="footer-logo-hover-spin inline-flex size-20 shrink-0 items-center justify-center outline-none transition-transform duration-150 focus-visible:ring-2 focus-visible:ring-black/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 md:self-start"
                         onClick={() =>
                             trackEvent('nav_link_clicked', {
                                 destination: 'home',
@@ -195,23 +186,10 @@ export function SiteFooter({ tone = 'dark', asteroidsOpen, onAsteroidsOpenChange
                             })
                         }
                     >
-                        <Logo width={24} height={24} />
+                        <Logo width={80} height={80} />
                     </Link>
                 )}
             </footer>
         </>
-    );
-}
-
-function SolanaFoundationMark({ tone }: { tone: FooterTone }) {
-    return (
-        <Image
-            src="/landing/solana-foundation.svg"
-            alt="Solana Foundation"
-            width={147}
-            height={24}
-            className={`h-6 w-auto ${tone === 'light' ? 'brightness-0' : ''}`}
-            priority={false}
-        />
     );
 }

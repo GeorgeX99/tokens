@@ -8,6 +8,7 @@ import {
     BreadcrumbPage,
     BreadcrumbSeparator,
 } from '@tokens/ui/breadcrumb';
+import { SITE_NAME } from '@/lib/site-brand';
 
 interface TokenBreadcrumbProps {
     displayName: string;
@@ -32,7 +33,7 @@ export function TokenBreadcrumb({ displayName, variantSymbol, canonicalHref }: T
                                     href="/"
                                     className="flex items-center gap-2 text-text-medium font-medium hover:text-text-extra-high transition-colors group"
                                 >
-                                    Tokens
+                                    {SITE_NAME}
                                 </Link>
                             </BreadcrumbLink>
                         </BreadcrumbItem>

@@ -12,8 +12,14 @@ import {
 } from '@/hooks/queries/use-token-search';
 import type { CuratedTokenListIdWithoutLsts } from '@/lib/curated-token-lists';
 import type { HomeTabId } from '@/lib/home-highlights';
+import type { MemecoinTrendingDuration } from '@/lib/memecoin-trending';
 import type { Token, TrendingWindow } from '@/lib/types';
-import { HOME_TAB_IDS, TRENDING_MODE_IDS, TRENDING_WINDOW_IDS } from './home-tokens-constants';
+import {
+    DEFAULT_MEMECOIN_TRENDING_DURATION,
+    HOME_TAB_IDS,
+    TRENDING_MODE_IDS,
+    TRENDING_WINDOW_IDS,
+} from './home-tokens-constants';
 
 export interface HomeCategoryTab {
     id: HomeTabId;
@@ -32,14 +38,15 @@ const trendingWindowParser = parseAsStringEnum<TrendingWindow>(TRENDING_WINDOW_I
     history: 'replace',
     scroll: false,
 });
-
 interface HomeTokensContextValue {
     categories: HomeCategoryTab[];
     defaultCategoryId: HomeTabId;
     activeCategoryId: HomeTabId;
     isTrending: boolean;
+    isMemecoins: boolean;
     trendingMode: TrendingMode;
     trendingWindow: TrendingWindow;
+    memecoinDuration: MemecoinTrendingDuration;
     /** Tokens for the active tab (SSR-provided for the initial tab, fetched after). */
     tokens: Token[];
     isLoading: boolean;
@@ -47,6 +54,7 @@ interface HomeTokensContextValue {
     setActiveCategoryId: (id: HomeTabId) => void;
     setTrendingMode: (mode: TrendingMode) => void;
     setTrendingWindow: (window: TrendingWindow) => void;
+    setMemecoinDuration: (duration: MemecoinTrendingDuration) => void;
 }
 
 const HomeTokensContext = createContext<HomeTokensContextValue | null>(null);
@@ -63,8 +71,9 @@ function HomeTokensProviderInner({ categories, initialCategoryId, initialTokens,
     // Captured on first client render: the server can't stamp Date.now() because that
     // would block the prerendered shell under cacheComponents.
     const [initialFetchedAt] = useState(() => Date.now());
-    const defaultCategoryId = categories.some(category => category.id === 'majors')
-        ? 'majors'
+    // Prefer the SSR initial tab (Memecoins on home). Fall back to first listed tab.
+    const defaultCategoryId = categories.some(category => category.id === initialCategoryId)
+        ? initialCategoryId
         : (categories[0]?.id ?? initialCategoryId);
     const [activeTab, setActiveTab] = useQueryState(
         HOME_CATEGORY_PARAM_KEY,
@@ -74,6 +83,10 @@ function HomeTokensProviderInner({ categories, initialCategoryId, initialTokens,
     const [trendingWindow, setTrendingWindowState] = useQueryState(
         'trendingWindow',
         trendingWindowParser.withDefault('1h'),
+    );
+    // Memecoin timeframe is UI-only — don't mirror it in the URL.
+    const [memecoinDuration, setMemecoinDuration] = useState<MemecoinTrendingDuration>(
+        DEFAULT_MEMECOIN_TRENDING_DURATION,
     );
 
     const activeCategory = categories.find(c => c.id === activeTab) ?? categories[0];
@@ -86,9 +99,13 @@ function HomeTokensProviderInner({ categories, initialCategoryId, initialTokens,
     // is only consumed when the cache entry is empty, and `initialDataUpdatedAt` lets the
     // hooks' normal staleTime drive revalidation instead of pinning the snapshot forever.
     // The SSR trending fetch always uses the default 'fresh' mode, so only that query is seeded.
+    // Memecoins SSR uses the default duration, so only seed that query key.
     const seedCurated = !isTrending && !isMemecoins && activeCategoryId === initialCategoryId;
     const seedTrending = isTrending && initialCategoryId === 'trending' && trendingMode === 'fresh';
-    const seedMemecoins = isMemecoins && initialCategoryId === 'memecoins';
+    const seedMemecoins =
+        isMemecoins &&
+        initialCategoryId === 'memecoins' &&
+        memecoinDuration === DEFAULT_MEMECOIN_TRENDING_DURATION;
 
     const {
         data: fetchedTokens = [],
@@ -114,6 +131,7 @@ function HomeTokensProviderInner({ categories, initialCategoryId, initialTokens,
         isLoading: isMemecoinsLoading,
         error: memecoinsError,
     } = useMemecoinTokens({
+        duration: memecoinDuration,
         enabled: isMemecoins,
         ...(seedMemecoins ? { initialData: initialTokens, initialDataUpdatedAt: initialFetchedAt } : {}),
     });
@@ -149,28 +167,34 @@ function HomeTokensProviderInner({ categories, initialCategoryId, initialTokens,
             defaultCategoryId,
             activeCategoryId,
             isTrending,
+            isMemecoins,
             trendingMode,
             trendingWindow,
+            memecoinDuration,
             tokens,
             isLoading: activeIsLoading,
             error: activeError,
             setActiveCategoryId,
             setTrendingMode,
             setTrendingWindow,
+            setMemecoinDuration,
         }),
         [
             categories,
             defaultCategoryId,
             activeCategoryId,
             isTrending,
+            isMemecoins,
             trendingMode,
             trendingWindow,
+            memecoinDuration,
             tokens,
             activeIsLoading,
             activeError,
             setActiveCategoryId,
             setTrendingMode,
             setTrendingWindow,
+            setMemecoinDuration,
         ],
     );
 

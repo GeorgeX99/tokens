@@ -18,7 +18,7 @@ import { normalizeLogoSrc } from '@/lib/normalize-logo-src';
 import { looksLikeSolanaMintAddress } from '@/lib/solana-address';
 import { getVariantHubById, getVariantHubByMint, type VariantHub } from '@tokens/asset-registry';
 import { TokenVariantsBadge } from './token-variants-badge';
-import { TokenRiskPopover } from './token-risk-popover';
+import { SITE_LOGO_SRC } from '@/lib/site-brand';
 import { formatCompactAddress } from '../lib/format';
 
 interface TokenLinks {
@@ -43,14 +43,20 @@ interface TokenHeaderProps {
     links?: TokenLinks;
     explorerHref?: string;
     explorerAriaLabel?: string;
-    riskSummaryUrl?: string;
-    riskQueryKey?: readonly unknown[];
     variantGroup?: VariantHub | null;
     variantCurrentAddress?: string;
+    /** Corner Solana mark on the logo. Off by default — logo only. */
     showSolanaBadge?: boolean;
     variantLinkMode?: 'token' | 'coingecko';
     variantLinkCoinId?: string;
     showSingletonVariantBadge?: boolean;
+    /** Skip circular crop (e.g. transparent $SPL mark). */
+    uncroppedLogo?: boolean;
+}
+
+function isSiteBrandLogo(src: string | undefined): boolean {
+    if (!src) return false;
+    return src === SITE_LOGO_SRC || src.endsWith('/logos/SPL-Token.svg');
 }
 
 function TokenLogo({
@@ -59,7 +65,8 @@ function TokenLogo({
     displayName,
     displayLogoURI,
     preferDisplayLogoURI,
-}: Pick<TokenHeaderProps, 'symbol' | 'displayName' | 'displayLogoURI'> & {
+    uncroppedLogo,
+}: Pick<TokenHeaderProps, 'symbol' | 'displayName' | 'displayLogoURI' | 'uncroppedLogo'> & {
     mint?: string;
     preferDisplayLogoURI?: boolean;
 }) {
@@ -69,6 +76,7 @@ function TokenLogo({
             ? displayLogoURI
             : getTokenLogoURLForMintWithSecondarySymbol(mint, symbol, displayName, displayLogoURI),
     );
+    const uncropped = Boolean(uncroppedLogo || isSiteBrandLogo(resolvedLogoURI) || isSiteBrandLogo(displayLogoURI));
 
     if (!resolvedLogoURI || hasError) {
         return (
@@ -85,7 +93,11 @@ function TokenLogo({
             width={55}
             height={55}
             priority
-            className="size-[60px] rounded-full ring-3 ring-border-extra-light object-cover"
+            className={
+                uncropped
+                    ? 'size-[60px] object-contain'
+                    : 'size-[60px] rounded-full ring-3 ring-border-extra-light object-cover'
+            }
             onError={() => setHasError(true)}
         />
     );
@@ -419,14 +431,13 @@ export function TokenHeader({
     links,
     explorerHref: explorerHrefProp,
     explorerAriaLabel: explorerAriaLabelProp,
-    riskSummaryUrl,
-    riskQueryKey,
     variantGroup,
     variantCurrentAddress,
-    showSolanaBadge: showSolanaBadgeProp,
+    showSolanaBadge: showSolanaBadgeProp = false,
     variantLinkMode = 'token',
     variantLinkCoinId,
     showSingletonVariantBadge = false,
+    uncroppedLogo,
 }: TokenHeaderProps) {
     const router = useRouter();
     const pathname = usePathname();
@@ -442,7 +453,7 @@ export function TokenHeader({
     const variantsCurrent = variantCurrentAddress ?? address;
     const explorerHref = explorerHrefProp ?? `https://explorer.solana.com/address/${address}`;
     const explorerAriaLabel = explorerAriaLabelProp ?? 'View on Solana Explorer';
-    const showSolanaBadge = showSolanaBadgeProp ?? explorerHrefProp == null;
+    const showSolanaBadge = showSolanaBadgeProp;
     const orbHref =
         showSolanaBadge && looksLikeSolanaMintAddress(address)
             ? `https://orbmarkets.io/token/${encodeURIComponent(address)}`
@@ -488,6 +499,7 @@ export function TokenHeader({
                         displayName={displayName}
                         displayLogoURI={displayLogoURI}
                         preferDisplayLogoURI={shouldShowSelectedVariant}
+                        uncroppedLogo={uncroppedLogo}
                     />
                     {showSolanaBadge && (
                         <div className="absolute bottom-0 right-0 translate-x-1.5 translate-y-1.5">
@@ -502,11 +514,6 @@ export function TokenHeader({
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                         <h1 className="text-title-md text-text-extra-high font-semibold truncate">{displayName}</h1>
-                        <TokenRiskPopover
-                            address={address}
-                            riskSummaryUrl={riskSummaryUrl}
-                            riskQueryKey={riskQueryKey}
-                        />
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         <Badge

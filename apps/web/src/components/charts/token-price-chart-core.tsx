@@ -16,11 +16,15 @@ import {
     findClosestCandleIndex,
     formatAxisTimeLabel,
     formatPointDateLabel,
+    formatUsdMarketCap,
     formatUsdPrice,
     INTERVALS,
+    pickMicroPriceScale,
+    resolveChartWindowSeconds,
+    resolveSupplyFromMarketCap,
     TIME_RANGES,
 } from './price-chart-utils';
-import type { TokenPriceChartCoreProps } from './price-chart-types';
+import type { ChartTimeRangeOption, ChartValueMode, TokenPriceChartCoreProps } from './price-chart-types';
 
 type ChartDisplayMode = 'line' | 'candlestick';
 
@@ -106,8 +110,21 @@ const CHART_MODE_ITEMS = [
     { value: 'candlestick', label: 'Candlestick chart', icon: <CandlestickChartModeIcon className="size-4" /> },
 ];
 
+const VALUE_MODE_ITEMS = [
+    { value: 'mcap', label: 'MCap' },
+    { value: 'price', label: 'Price' },
+];
+
 function intervalToSeconds(interval: TokenPriceChartCoreProps['interval']): number | null {
     switch (interval) {
+        case '1s':
+            return 1;
+        case '1m':
+            return 60;
+        case '5m':
+            return 5 * 60;
+        case '15m':
+            return 15 * 60;
         case '1H':
             return 60 * 60;
         case '4H':
@@ -173,10 +190,13 @@ function useLivelineChartData(
     realtimePoint: TokenPriceChartCoreProps['realtimePoint'],
 ) {
     const pricePoints = useMemo((): LivelinePoint[] => candles.map(d => ({ time: d.time, value: d.close })), [candles]);
-    const candleWidthSeconds = useMemo(
-        () => intervalToSeconds(interval) ?? inferCandleWidthSeconds(candles),
-        [candles, interval],
-    );
+    const candleWidthSeconds = useMemo(() => {
+        const inferred = inferCandleWidthSeconds(candles);
+        const fromInterval = intervalToSeconds(interval);
+        // If we requested 1s but only got 1m buckets (common on public Gecko), size candles to the data.
+        if (fromInterval != null && candles.length >= 2 && inferred > fromInterval * 2) return inferred;
+        return fromInterval ?? inferred;
+    }, [candles, interval]);
     const candlesWithLive = useMemo(() => {
         if (!realtimePoint) return candles;
         const last = candles.at(-1);
@@ -318,6 +338,7 @@ const TimeScaleSelector = memo(function TimeScaleSelector({
     setTimeRange,
     interval,
     onIntervalChange,
+    leadingActions,
     actions,
 }: {
     timeRange: number;
@@ -325,13 +346,14 @@ const TimeScaleSelector = memo(function TimeScaleSelector({
     interval?: string;
     // Named to avoid shadowing the global `setInterval` timer function.
     onIntervalChange?: (interval: (typeof INTERVALS)[number]['value']) => void;
+    leadingActions?: React.ReactNode;
     actions?: React.ReactNode;
 }) {
     const isHourlyDisabled = timeRange >= 365;
 
     return (
         <div className="flex items-start justify-between gap-3 w-full">
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
                 <div className="flex bg-gray-50 border border-border-light rounded-full p-1">
                     {TIME_RANGES.map(range => (
                         <button
@@ -349,6 +371,7 @@ const TimeScaleSelector = memo(function TimeScaleSelector({
                         </button>
                     ))}
                 </div>
+                {leadingActions}
             </div>
             {(onIntervalChange || actions) && (
                 <div className="flex flex-col items-end gap-1">
@@ -385,23 +408,27 @@ const TimeScaleSelector = memo(function TimeScaleSelector({
 const TimeframeTabs = memo(function TimeframeTabs({
     timeRange,
     setTimeRange,
+    ranges = TIME_RANGES,
 }: {
     timeRange: number;
     setTimeRange: (range: number) => void;
+    ranges?: readonly ChartTimeRangeOption[];
 }) {
-    const items = TIME_RANGES.map(range => ({
-        value: String(range.days),
+    const items = ranges.map(range => ({
+        value: range.label,
         label: range.label,
     }));
+    const activeLabel =
+        ranges.find(range => Math.abs(range.days - timeRange) < 1e-9)?.label ?? ranges[0]?.label ?? '';
 
     return (
         <SegmentedControl
             className="w-fit"
             items={items}
-            value={String(timeRange)}
+            value={activeLabel}
             onValueChange={value => {
-                const nextRange = Number(value);
-                if (Number.isFinite(nextRange)) setTimeRange(nextRange);
+                const nextRange = ranges.find(range => range.label === value)?.days;
+                if (typeof nextRange === 'number' && Number.isFinite(nextRange)) setTimeRange(nextRange);
             }}
             aria-label="Chart timeframe"
         />
@@ -411,6 +438,7 @@ const TimeframeTabs = memo(function TimeframeTabs({
 function InlineAssetChartLayout({
     chartCardRef,
     displayPrice,
+    displayValueLabel,
     isScrubbing,
     displayPriceChange,
     isPriceUp,
@@ -419,10 +447,13 @@ function InlineAssetChartLayout({
     chart,
     timeRangeDays,
     onTimeRangeChange,
+    timeRanges,
     chartActions,
+    valueModeControl,
 }: {
     chartCardRef: React.RefObject<HTMLDivElement | null>;
     displayPrice: number | null;
+    displayValueLabel: string;
     isScrubbing: boolean;
     displayPriceChange: number | null | undefined;
     isPriceUp: boolean;
@@ -431,7 +462,9 @@ function InlineAssetChartLayout({
     chart: React.ReactNode;
     timeRangeDays: number;
     onTimeRangeChange: (days: number) => void;
+    timeRanges?: readonly ChartTimeRangeOption[];
     chartActions: React.ReactNode;
+    valueModeControl?: React.ReactNode;
 }) {
     return (
         <div className="will-change-auto transform-gpu">
@@ -445,13 +478,13 @@ function InlineAssetChartLayout({
                 <div className="p-0 relative">
                     <div className="absolute inset-0 z-0 size-full opacity-20" />
 
-                    <div className="relative z-10 flex flex-row items-start justify-between py-4 sm:py-6">
+                    <div className="relative z-10 flex flex-row items-start justify-between gap-3 py-4 sm:py-6">
                         <div className="flex flex-col space-y-1">
                             {displayPrice != null && (
                                 <>
                                     <div className="flex items-center">
                                         <AnimatedPrice
-                                            value={formatPrice(displayPrice)}
+                                            value={displayValueLabel}
                                             className="text-3xl font-semibold text-text-extra-high"
                                             enabled={!isScrubbing}
                                         />
@@ -497,7 +530,14 @@ function InlineAssetChartLayout({
             </div>
 
             <div className="flex flex-wrap items-center justify-between mt-4 gap-3">
-                <TimeframeTabs timeRange={timeRangeDays} setTimeRange={onTimeRangeChange} />
+                <div className="flex flex-wrap items-center gap-2">
+                    <TimeframeTabs
+                        timeRange={timeRangeDays}
+                        setTimeRange={onTimeRangeChange}
+                        ranges={timeRanges}
+                    />
+                    {valueModeControl}
+                </div>
                 {chartActions}
             </div>
         </div>
@@ -514,8 +554,12 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
     logoURI,
     currentPrice,
     priceChange24h,
+    marketCap,
+    defaultValueMode,
     timeRangeDays,
     onTimeRangeChange,
+    timeRanges,
+    fitWindowToData = false,
     interval,
     onIntervalChange,
     showIntervalSelector,
@@ -526,6 +570,19 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
     const [chartMode, setChartMode] = useState<ChartDisplayMode>('line');
     const chartCardRef = useRef<HTMLDivElement>(null);
     const { data: accentColor } = useDominantColor(logoURI);
+
+    const supplyMultiplier = useMemo(
+        () => resolveSupplyFromMarketCap(marketCap, currentPrice ?? realtimePoint?.value ?? null),
+        [marketCap, currentPrice, realtimePoint?.value],
+    );
+    const canShowMcap = supplyMultiplier != null;
+    const [valueMode, setValueMode] = useState<ChartValueMode>(() => {
+        if (defaultValueMode) return defaultValueMode;
+        // Prefer mcap when supply is already known on first render (SSR seed / props).
+        return 'mcap';
+    });
+    const activeValueMode: ChartValueMode = canShowMcap && valueMode === 'mcap' ? 'mcap' : 'price';
+    const valueMultiplier = activeValueMode === 'mcap' && supplyMultiplier != null ? supplyMultiplier : 1;
 
     const { pricePoints, candleWidthSeconds, candlesWithLive, livelineCandleData, displayLinePoints } =
         useLivelineChartData(candles, interval, realtimePoint);
@@ -556,9 +613,20 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
         [clearHover],
     );
 
+    const handleValueModeChange = useCallback(
+        (value: string) => {
+            if (value !== 'price' && value !== 'mcap') return;
+            clearHover();
+            setValueMode(value);
+        },
+        [clearHover],
+    );
+
     const latestClose = candles.at(-1)?.close ?? null;
     const idlePrice = realtimePoint?.value ?? latestClose ?? currentPrice ?? null;
-    const displayPrice = crosshair?.value ?? idlePrice;
+    const displayPriceRaw = crosshair?.value ?? idlePrice;
+    const displayPrice =
+        displayPriceRaw != null && Number.isFinite(displayPriceRaw) ? displayPriceRaw * valueMultiplier : null;
     const startPrice = candles.length > 0 ? candles[0]?.open : currentPrice;
     const scrubPriceChange = crosshair && startPrice ? ((crosshair.value - startPrice) / startPrice) * 100 : null;
     const timeframePriceChange =
@@ -567,16 +635,80 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
             : priceChange24h;
     const displayPriceChange = crosshair ? scrubPriceChange : timeframePriceChange;
     const isPriceUp = (displayPriceChange ?? 0) >= 0;
-    const chartValue = displayLinePoints.at(-1)?.value ?? currentPrice ?? 0;
+    const chartValue = (displayLinePoints.at(-1)?.value ?? currentPrice ?? 0) * valueMultiplier;
     const isChartLoading = isLoading && displayLinePoints.length === 0;
     const hasCandleData = livelineCandleData.candles.length >= 2;
     const showPending = isPending || isLoading;
-    const timeframeLabel = TIME_RANGES.find(r => r.days === timeRangeDays)?.label ?? `${timeRangeDays}D`;
+    const rangeOptions = timeRanges ?? TIME_RANGES;
+    const timeframeLabel =
+        rangeOptions.find(r => Math.abs(r.days - timeRangeDays) < 1e-9)?.label ?? `${timeRangeDays}D`;
     const displayPointTimeSec = crosshair?.time ?? realtimePoint?.time ?? candles.at(-1)?.time ?? null;
     const displayPointDateLabel =
         displayPointTimeSec != null ? formatPointDateLabel(displayPointTimeSec, timeRangeDays) : null;
     const shareKey = `${shareContext.address ?? shareContext.assetId ?? shareContext.coinId ?? ''}:${shareContext.mint ?? ''}:${symbol}:${tokenName ?? ''}:${logoURI ?? ''}`;
     const canShare = Boolean(shareContext.address || shareContext.assetId || shareContext.mint);
+    const chartWindowSecs = resolveChartWindowSeconds({
+        selectedWindowSecs: timeRangeDays * 24 * 60 * 60,
+        candles: candlesWithLive,
+        candleWidthSeconds,
+        fitToData: fitWindowToData,
+    });
+
+    // Scale micro-priced memecoins so Liveline doesn't collapse them to a $0 flatline.
+    // In mcap mode values are already large, so skip the micro exaggeration.
+    const priceScale = useMemo(() => {
+        if (valueMultiplier !== 1) return 1;
+        const values = candlesWithLive.flatMap(c => [c.open, c.high, c.low, c.close]);
+        if (currentPrice != null) values.push(currentPrice);
+        return pickMicroPriceScale(values);
+    }, [candlesWithLive, currentPrice, valueMultiplier]);
+    const seriesScale = priceScale * valueMultiplier;
+    const scaledDisplayLinePoints = useMemo(
+        () =>
+            seriesScale === 1
+                ? displayLinePoints
+                : displayLinePoints.map(point => ({ ...point, value: point.value * seriesScale })),
+        [displayLinePoints, seriesScale],
+    );
+    const scaledChartValue = chartValue * priceScale;
+    const scaledLivelineCandles = useMemo(
+        () =>
+            seriesScale === 1
+                ? livelineCandleData.candles
+                : livelineCandleData.candles.map(candle => ({
+                      ...candle,
+                      open: candle.open * seriesScale,
+                      high: candle.high * seriesScale,
+                      low: candle.low * seriesScale,
+                      close: candle.close * seriesScale,
+                  })),
+        [livelineCandleData.candles, seriesScale],
+    );
+    const scaledLiveCandle = useMemo(() => {
+        const live = livelineCandleData.liveCandle;
+        if (!live || seriesScale === 1) return live;
+        return {
+            ...live,
+            open: live.open * seriesScale,
+            high: live.high * seriesScale,
+            low: live.low * seriesScale,
+            close: live.close * seriesScale,
+        };
+    }, [livelineCandleData.liveCandle, seriesScale]);
+    const formatChartValue = useCallback(
+        (value: number) => {
+            const unscaled = seriesScale === 1 ? value : value / seriesScale;
+            const display = unscaled * valueMultiplier;
+            return activeValueMode === 'mcap' ? formatUsdMarketCap(display) : formatUsdPrice(unscaled);
+        },
+        [activeValueMode, seriesScale, valueMultiplier],
+    );
+    const displayValueLabel =
+        displayPrice == null
+            ? '—'
+            : activeValueMode === 'mcap'
+              ? formatUsdMarketCap(displayPrice)
+              : formatPrice(displayPrice);
 
     const shareButton = canShare ? (
         <ChartShareButton
@@ -588,10 +720,17 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
             onBeforeCapture={clearHover}
             tokenName={tokenName ?? symbol}
             logoURI={logoURI}
-            currentPrice={idlePrice ?? undefined}
+            currentPrice={
+                idlePrice != null ? idlePrice * (activeValueMode === 'mcap' ? valueMultiplier : 1) : undefined
+            }
             percentChange={variant === 'inline-asset' ? (timeframePriceChange ?? priceChange24h) : priceChange24h}
-            pricePoints={pricePoints.length <= 1 ? displayLinePoints : pricePoints}
-            chartWindowSecs={timeRangeDays * 24 * 60 * 60}
+            pricePoints={
+                (pricePoints.length <= 1 ? displayLinePoints : pricePoints).map(point => ({
+                    ...point,
+                    value: point.value * valueMultiplier,
+                }))
+            }
+            chartWindowSecs={chartWindowSecs}
             chartColor={accentColor ?? DEFAULT_CHART_COLOR}
             shareTimeframeDays={variant === 'inline-asset' ? timeRangeDays : undefined}
             onShareTimeframeChange={variant === 'inline-asset' ? handleTimeRangeChange : undefined}
@@ -607,18 +746,29 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
             aria-label="Chart display mode"
         />
     );
+    const showValueModeToggle = marketCap !== undefined || canShowMcap;
+    const valueModeControl = showValueModeToggle ? (
+        <SegmentedControl
+            className="w-fit shrink-0"
+            items={VALUE_MODE_ITEMS}
+            value={canShowMcap ? activeValueMode : 'mcap'}
+            onValueChange={handleValueModeChange}
+            disabled={!canShowMcap}
+            aria-label="Chart value mode"
+        />
+    ) : null;
     const livelineChart = (
         <Liveline
-            data={displayLinePoints}
-            value={chartValue}
+            data={scaledDisplayLinePoints}
+            value={scaledChartValue}
             mode={hasCandleData ? 'candle' : 'line'}
-            candles={hasCandleData ? livelineCandleData.candles : undefined}
+            candles={hasCandleData ? scaledLivelineCandles : undefined}
             candleWidth={hasCandleData ? candleWidthSeconds : undefined}
-            liveCandle={hasCandleData ? livelineCandleData.liveCandle : undefined}
+            liveCandle={hasCandleData ? scaledLiveCandle : undefined}
             lineMode={hasCandleData ? chartMode === 'line' : undefined}
-            lineData={displayLinePoints}
-            lineValue={chartValue}
-            window={timeRangeDays * 24 * 60 * 60}
+            lineData={scaledDisplayLinePoints}
+            lineValue={scaledChartValue}
+            window={chartWindowSecs}
             theme="light"
             color={accentColor ?? DEFAULT_CHART_COLOR}
             grid
@@ -627,12 +777,13 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
             showValue={false}
             fill
             momentum
+            exaggerate={priceScale > 1}
             scrub
             paused={isScrubbing}
             loading={isChartLoading}
-            emptyText="No price data to display"
+            emptyText={activeValueMode === 'mcap' ? 'No market cap data to display' : 'No price data to display'}
             onHover={handleHover}
-            formatValue={formatUsdPrice}
+            formatValue={formatChartValue}
             formatTime={t => formatAxisTimeLabel(t, timeRangeDays)}
             tooltipY={-1000}
             tooltipOutline={false}
@@ -641,16 +792,16 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
     );
     const inlineLivelineChart = (
         <Liveline
-            data={displayLinePoints}
-            value={chartValue}
+            data={scaledDisplayLinePoints}
+            value={scaledChartValue}
             mode={hasCandleData ? 'candle' : 'line'}
-            candles={hasCandleData ? livelineCandleData.candles : undefined}
+            candles={hasCandleData ? scaledLivelineCandles : undefined}
             candleWidth={hasCandleData ? candleWidthSeconds : undefined}
-            liveCandle={hasCandleData ? livelineCandleData.liveCandle : undefined}
+            liveCandle={hasCandleData ? scaledLiveCandle : undefined}
             lineMode={hasCandleData ? chartMode === 'line' : undefined}
-            lineData={displayLinePoints}
-            lineValue={chartValue}
-            window={timeRangeDays * 24 * 60 * 60}
+            lineData={scaledDisplayLinePoints}
+            lineValue={scaledChartValue}
+            window={chartWindowSecs}
             theme="light"
             color={accentColor ?? DEFAULT_CHART_COLOR}
             grid={false}
@@ -658,12 +809,13 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
             badge={false}
             fill
             momentum
+            exaggerate={priceScale > 1}
             scrub
             paused={isScrubbing}
             loading={isChartLoading}
-            emptyText="No price data to display"
+            emptyText={activeValueMode === 'mcap' ? 'No market cap data to display' : 'No price data to display'}
             onHover={handleHover}
-            formatValue={formatUsdPrice}
+            formatValue={formatChartValue}
             formatTime={t => formatAxisTimeLabel(t, timeRangeDays)}
             tooltipY={-1000}
             tooltipOutline={false}
@@ -682,6 +834,7 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
             <InlineAssetChartLayout
                 chartCardRef={chartCardRef}
                 displayPrice={displayPrice}
+                displayValueLabel={displayValueLabel}
                 isScrubbing={isScrubbing}
                 displayPriceChange={displayPriceChange}
                 isPriceUp={isPriceUp}
@@ -690,7 +843,9 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
                 chart={livelineChart}
                 timeRangeDays={timeRangeDays}
                 onTimeRangeChange={handleTimeRangeChange}
+                timeRanges={timeRanges}
                 chartActions={chartActions}
+                valueModeControl={valueModeControl}
             />
         );
     }
@@ -716,11 +871,13 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
                         }}
                     />
 
-                    <div className="relative z-10 flex flex-row items-start justify-between p-6">
+                    <div className="relative z-10 flex flex-row items-start justify-between gap-3 p-6">
                         <div className="flex flex-col space-y-1">
                             <div className="flex items-center gap-1.5">
                                 <span className="text-text-extra-high font-semibold text-sm">{symbol}</span>
-                                <span className="text-text-low text-xs">price is currently</span>
+                                <span className="text-text-low text-xs">
+                                    {activeValueMode === 'mcap' ? 'mcap is currently' : 'price is currently'}
+                                </span>
                             </div>
 
                             {displayPrice != null && (
@@ -729,7 +886,7 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
                                         <span
                                             className={`text-3xl font-semibold text-text-extra-high tabular-nums ${showPending ? 'animate-pulse' : ''}`}
                                         >
-                                            {formatPrice(displayPrice)}
+                                            {displayValueLabel}
                                         </span>
                                         {showPending && (
                                             <div className="inline-flex items-center ml-2">
@@ -791,6 +948,7 @@ export const TokenPriceChartCore = memo(function TokenPriceChartCore({
                     setTimeRange={handleTimeRangeChange}
                     interval={showIntervalSelector ? interval : undefined}
                     onIntervalChange={showIntervalSelector ? handleIntervalChange : undefined}
+                    leadingActions={valueModeControl}
                     actions={chartActions}
                 />
             </div>

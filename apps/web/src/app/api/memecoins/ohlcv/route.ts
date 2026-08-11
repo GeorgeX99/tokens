@@ -7,7 +7,7 @@ import { looksLikeSolanaMintAddress } from '@/lib/solana-address';
 const CACHE_MAX_AGE_SECONDS = 30;
 const CACHE_STALE_SECONDS = 120;
 
-const VALID_INTERVALS = new Set<TimeInterval>(['1m', '5m', '15m', '1H', '4H', '1D', '1W']);
+const VALID_INTERVALS = new Set<TimeInterval>(['1s', '1m', '5m', '15m', '1H', '4H', '1D', '1W']);
 
 export async function GET(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -27,9 +27,15 @@ export async function GET(request: Request): Promise<Response> {
 
     const candles = await fetchDexscreenerOhlcv({ mint, interval, from, to });
 
+    // Don't let empty upstream failures (429/401) stick in the CDN/browser for half a minute.
+    const cacheControl =
+        candles.length > 0
+            ? `public, s-maxage=${CACHE_MAX_AGE_SECONDS}, stale-while-revalidate=${CACHE_STALE_SECONDS}`
+            : 'public, s-maxage=0, stale-while-revalidate=5';
+
     return NextResponse.json(candles, {
         headers: {
-            'Cache-Control': `public, s-maxage=${CACHE_MAX_AGE_SECONDS}, stale-while-revalidate=${CACHE_STALE_SECONDS}`,
+            'Cache-Control': cacheControl,
         },
     });
 }

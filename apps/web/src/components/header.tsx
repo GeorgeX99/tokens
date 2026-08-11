@@ -3,10 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { IconXLogo } from 'symbols-react';
 import { cn } from '@tokens/ui/cn';
 import { trackEvent } from '@/lib/posthog-client';
+import {
+    getSiteXUrl,
+    SPL_TOKEN_BASICS_URL,
+} from '@/lib/site-brand';
+import { HeaderSolPrice } from './header-sol-price';
+import { HeaderSplPrice } from './header-spl-price';
 import { TokenSearch } from './token-search';
-import { Logo } from './logo';
 import { useSearchVisibility } from './search-visibility-provider';
 
 function getHasScrolled(): boolean {
@@ -27,6 +33,7 @@ export function Header() {
     const pathname = usePathname();
     const { isHeroSearchVisible } = useSearchVisibility();
     const [hasScrolled, setHasScrolled] = useState(false);
+    const xUrl = getSiteXUrl();
 
     useEffect(() => {
         function handleScroll() {
@@ -52,11 +59,11 @@ export function Header() {
                     : 'bg-transparent border-transparent',
             )}
         >
-            <div className="mx-auto flex items-center justify-between gap-4 px-6 py-4">
-                <div className="flex items-center">
+            <div className="mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:gap-4 sm:px-6">
+                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                     <Link
                         href="/"
-                        className="flex items-center justify-center group gap-2"
+                        className="inline-flex h-10 items-center px-2 text-[length:var(--text-button-lg)] font-semibold leading-none text-text-medium transition-colors duration-150 hover:text-text-extra-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         onClick={() =>
                             trackEvent('nav_link_clicked', {
                                 destination: 'home',
@@ -65,12 +72,15 @@ export function Header() {
                             })
                         }
                     >
-                        <Logo width={24} height={24} className="" />
-                        <span className="text-text-extra-high font-semibold text-2xl">Tokens</span>
+                        Home
                     </Link>
+                    <div className="hidden items-center gap-2 md:flex">
+                        <HeaderSolPrice />
+                        <HeaderSplPrice />
+                    </div>
                 </div>
 
-                <div className="flex items-center">
+                <div className="flex flex-1 items-center justify-end gap-2 sm:justify-center sm:gap-3">
                     <div
                         className={`transition-[opacity,transform] duration-200 ease-out ${
                             isHeroSearchVisible
@@ -80,37 +90,57 @@ export function Header() {
                     >
                         <TokenSearch />
                     </div>
+                    <div className="flex items-center gap-2 md:hidden">
+                        <HeaderSolPrice />
+                        <HeaderSplPrice />
+                    </div>
                 </div>
 
-                <nav aria-label="Main navigation" className="hidden items-center gap-6 sm:flex sm:gap-8">
+                <nav aria-label="Main navigation" className="hidden items-center gap-3 sm:flex lg:gap-5">
+                    <Link
+                        href="/#memecoins"
+                        className="inline-flex h-10 items-center px-2 text-[length:var(--text-button-lg)] font-semibold leading-none text-text-medium transition-colors duration-150 hover:text-text-extra-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        onClick={() =>
+                            trackEvent('nav_link_clicked', {
+                                destination: 'memecoins',
+                                link_url: '/#memecoins',
+                                source: 'header',
+                            })
+                        }
+                    >
+                        Memecoins
+                    </Link>
                     <a
-                        href="https://docs.tokens.xyz"
+                        href={SPL_TOKEN_BASICS_URL}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex h-10 items-center px-2 text-[length:var(--text-button-lg)] font-semibold leading-none text-text-medium transition-colors duration-150 hover:text-text-extra-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className="hidden lg:inline-flex h-10 items-center px-2 text-[length:var(--text-button-lg)] font-semibold leading-none text-text-medium transition-colors duration-150 hover:text-text-extra-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         onClick={() =>
                             trackEvent('external_link_clicked', {
                                 link_type: 'docs',
-                                link_url: 'https://docs.tokens.xyz',
+                                link_url: SPL_TOKEN_BASICS_URL,
                                 source: 'header',
                             })
                         }
                     >
-                        Docs
+                        Basics
                     </a>
-                    <Link
-                        href="/assets-api"
-                        className="inline-flex h-9 items-center justify-center rounded-full bg-text-extra-high px-3.5 text-[length:var(--text-button-md)] font-semibold leading-none text-background transition-[colors,transform] duration-150 hover:bg-text-high active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    <a
+                        href={xUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="SPL Token on X"
+                        className="inline-flex size-9 items-center justify-center rounded-full bg-text-extra-high text-background transition-[colors,transform] duration-150 hover:bg-text-high active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         onClick={() =>
-                            trackEvent('nav_link_clicked', {
-                                destination: 'assets_api',
-                                link_url: '/assets-api',
+                            trackEvent('external_link_clicked', {
+                                link_type: 'x',
+                                link_url: xUrl,
                                 source: 'header',
                             })
                         }
                     >
-                        Assets API
-                    </Link>
+                        <IconXLogo className="size-4 fill-current" aria-hidden="true" />
+                    </a>
                 </nav>
             </div>
         </header>

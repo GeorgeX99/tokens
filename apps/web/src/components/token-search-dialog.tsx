@@ -3,53 +3,41 @@
 import * as React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useQueries, useQuery } from '@tanstack/react-query';
-import { Effect } from 'effect';
 import { BarChart3, Clock, Search } from 'lucide-react';
 import { trackEvent } from '@/lib/posthog-client';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@tokens/ui/command';
 import { Skeleton } from '@tokens/ui/skeleton';
 import { useLocalStorage, useMediaQuery } from '@tokens/ui/hooks';
-import { fetchCuratedTokens, useCuratedTokens, useSearchTokens } from '@/hooks/queries/use-token-search';
+import { useCuratedTokens, useMemecoinTokens, useSearchTokens } from '@/hooks/queries/use-token-search';
 import { cleanTokenName } from '@/lib/logo-overrides';
 import { formatLargeNumber, formatPrice } from '@/lib/format';
-import { CURATED_LIST_ORDER_WITHOUT_LSTS, type CuratedTokenListIdWithoutLsts } from '@/lib/curated-token-lists';
-import { getCuratedTokenList, type CuratedTokenListId } from '@tokens/asset-registry/compat';
-import { getVariantByMint } from '@tokens/asset-registry';
+import { looksLikeSolanaMintAddress } from '@/lib/solana-address';
+import { SITE_LOGO_SRC, SITE_TICKER, SITE_TOKEN_NAME, getSplMint } from '@/lib/site-brand';
 import type { Token } from '@/lib/types';
-import { apiJson } from '@/effect/api-client';
 
 interface RecentSolanaTokenEntry {
     token: Token;
     selectedAt: number;
 }
 
-interface TokenSearchCategory {
-    id: CuratedTokenListIdWithoutLsts;
-    name: string;
-    addresses: readonly string[];
-}
-
-interface CuratedMintResponse {
-    assets: Array<{
-        primaryVariant: {
-            mint: string;
-        } | null;
-    }>;
-}
-
-const TOKEN_SEARCH_LIST_ORDER = CURATED_LIST_ORDER_WITHOUT_LSTS;
-const STATIC_LST_MINTS = new Set(getCuratedTokenList('lsts').addresses);
-
-const TOKEN_SEARCH_CATEGORIES: TokenSearchCategory[] = TOKEN_SEARCH_LIST_ORDER.map(listId => {
-    const list = getCuratedTokenList(listId);
+function buildSplHomeToken(): Token {
+    const mint = getSplMint();
     return {
-        id: listId,
-        name: list.name,
-        addresses: list.addresses,
-    } satisfies TokenSearchCategory;
-});
-const TOP_TOKENS_LIST_ID: CuratedTokenListId = 'majors';
+        address: mint && looksLikeSolanaMintAddress(mint) ? mint : 'spl',
+        symbol: SITE_TICKER,
+        name: SITE_TOKEN_NAME,
+        decimals: 0,
+        logoURI: SITE_LOGO_SRC,
+        price: 0,
+        priceChange24hPercent: 0,
+        priceChange1hPercent: 0,
+        volume24hUSD: 0,
+        liquidity: 0,
+        marketCap: 0,
+        category: 'memecoin',
+        assetId: 'spl-token',
+    };
+}
 
 function tokenMatchesQuery(token: Token, query: string): boolean {
     const q = query.trim().toLowerCase();
@@ -76,6 +64,7 @@ function tokenCommandValue(token: Token): string {
 
 function TokenLogo({ token }: { token: Token }) {
     const [hasError, setHasError] = React.useState(false);
+    const isBrandLogo = token.logoURI === SITE_LOGO_SRC || token.assetId === 'spl-token';
 
     if (!token.logoURI || hasError) {
         return (
@@ -89,7 +78,11 @@ function TokenLogo({ token }: { token: Token }) {
         <Image
             src={token.logoURI}
             alt={token.symbol}
-            className="h-8 w-8 rounded-full bg-gray-50 object-cover"
+            className={
+                isBrandLogo
+                    ? 'h-8 w-8 bg-transparent object-contain'
+                    : 'h-8 w-8 rounded-full bg-gray-50 object-cover'
+            }
             width={32}
             height={32}
             loading="lazy"
@@ -147,58 +140,46 @@ function TokenSearchItemSkeleton({ index }: { index: number }) {
     );
 }
 
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+    const [debounced, setDebounced] = React.useState(value);
+
+    React.useEffect(() => {
+        const timer = window.setTimeout(() => setDebounced(value), delayMs);
+        return () => window.clearTimeout(timer);
+    }, [delayMs, value]);
+
+    return debounced;
+}
+
 function useTokenSearchData(open: boolean, query: string) {
     const trimmedQuery = query.trim();
     const hasQuery = trimmedQuery.length > 0;
+    const debouncedQuery = useDebouncedValue(trimmedQuery, 250);
     const [recentTokens, setRecentTokens] = useLocalStorage<RecentSolanaTokenEntry[]>('token-search:recent', []);
     const isDesktop = useMediaQuery('(min-width: 768px)');
 
     const {
-        data: topTokensSource = [],
+        data: majorsTokens = [],
         isLoading: isLoadingTopTokens,
         error: topTokensError,
-    } = useCuratedTokens(TOP_TOKENS_LIST_ID, { enabled: open && !hasQuery });
-    const { data: dynamicLstMints } = useQuery<string[]>({
-        queryKey: ['tokens', 'curated', 'lsts', 'mints'],
-        queryFn: ({ signal }) =>
-            Effect.runPromise(
-                apiJson<CuratedMintResponse>({
-                    url: '/api/v1/assets/curated?list=lsts&groupBy=mint',
-                }).pipe(
-                    Effect.map(data =>
-                        Array.from(
-                            new Set(
-                                (data.assets ?? []).flatMap(asset => {
-                                    const mint = asset.primaryVariant?.mint?.trim();
-                                    return mint ? [mint] : [];
-                                }),
-                            ),
-                        ),
-                    ),
-                ),
-                { signal },
-            ),
-        enabled: open,
-        staleTime: 60 * 1000,
-    });
-    const lstMints = React.useMemo(
-        () => new Set((dynamicLstMints?.length ?? 0) > 0 ? dynamicLstMints : Array.from(STATIC_LST_MINTS)),
-        [dynamicLstMints],
+    } = useCuratedTokens('majors', { enabled: open });
+    const {
+        data: memecoinTokens = [],
+        isLoading: isLoadingMemecoins,
+        error: memecoinsError,
+    } = useMemecoinTokens({ enabled: open });
+
+    const solanaToken = React.useMemo(
+        () => majorsTokens.find(token => (token.assetId ?? '').trim() === 'solana') ?? null,
+        [majorsTokens],
     );
 
-    const curatedCategoryQueries = useQueries({
-        queries: TOKEN_SEARCH_CATEGORIES.map(category => ({
-            queryKey: ['tokens', 'curated', category.id],
-            queryFn: ({ signal }) => fetchCuratedTokens(category.id, signal),
-            staleTime: 60 * 1000,
-            enabled: open && hasQuery,
-        })),
-    });
-    const {
-        data: serverSearchTokens = [],
-        isLoading: isLoadingServerSearch,
-        error: serverSearchError,
-    } = useSearchTokens(trimmedQuery, { enabled: open && hasQuery });
+    const topTokensSource = React.useMemo(() => {
+        const rows: Token[] = [buildSplHomeToken()];
+        if (solanaToken) rows.push(solanaToken);
+        for (const token of memecoinTokens.slice(0, 40)) rows.push(token);
+        return rows;
+    }, [memecoinTokens, solanaToken]);
 
     // Recent searches are stored as full Token snapshots in localStorage, so their
     // market data goes stale. Overlay fresh values from already-fetched queries so the
@@ -206,13 +187,12 @@ function useTokenSearchData(open: boolean, query: string) {
     const freshTokensByAddress = React.useMemo(() => {
         const map = new Map<string, Token>();
         for (const token of topTokensSource) map.set(token.address, token);
-        for (const token of serverSearchTokens) map.set(token.address, token);
         return map;
-    }, [topTokensSource, serverSearchTokens]);
+    }, [topTokensSource]);
 
     const recentSearches = React.useMemo(() => {
         const filtered = recentTokens
-            .filter(item => !lstMints.has(item.token.address) && tokenMatchesQuery(item.token, query))
+            .filter(item => tokenMatchesQuery(item.token, query))
             .sort((a, b) => b.selectedAt - a.selectedAt);
 
         const seen = new Set<string>();
@@ -228,51 +208,27 @@ function useTokenSearchData(open: boolean, query: string) {
         }
 
         return unique;
-    }, [freshTokensByAddress, lstMints, query, recentTokens]);
+    }, [freshTokensByAddress, query, recentTokens]);
 
     const topTokens = React.useMemo(() => {
         const filtered = topTokensSource.filter(token => tokenMatchesQuery(token, query));
         if (!isDesktop) return filtered.slice(0, 50);
 
-        const recentAddresses = new Set(
-            recentTokens.flatMap(entry => {
-                const address = entry.token.address;
-                return lstMints.has(address) ? [] : [address];
-            }),
-        );
+        const recentAddresses = new Set(recentTokens.map(entry => entry.token.address));
         return filtered.filter(token => !recentAddresses.has(token.address)).slice(0, 50);
-    }, [isDesktop, lstMints, query, recentTokens, topTokensSource]);
+    }, [isDesktop, query, recentTokens, topTokensSource]);
 
-    const isInitialLoadingTopTokens = open && !hasQuery && isLoadingTopTokens && topTokensSource.length === 0;
+    const isInitialLoadingTopTokens =
+        open && !hasQuery && (isLoadingTopTokens || isLoadingMemecoins) && topTokensSource.length <= 1;
 
-    const curatedSearchTokens = React.useMemo(() => {
-        if (!hasQuery) return [];
-
-        const seen = new Set<string>();
-        const matches: Token[] = [];
-
-        for (const queryResult of curatedCategoryQueries) {
-            const tokens = queryResult.data ?? [];
-            for (const token of tokens) {
-                if (seen.has(token.address)) continue;
-                seen.add(token.address);
-                if (!tokenMatchesQuery(token, query)) continue;
-                matches.push(token);
-                if (matches.length >= 50) return matches;
-            }
-        }
-
-        return matches;
-    }, [curatedCategoryQueries, hasQuery, query]);
-
-    const hasCuratedSearchError = hasQuery && curatedCategoryQueries.some(result => result.error);
     const searchTokens = React.useMemo(() => {
         if (!hasQuery) return [];
 
         const seen = new Set<string>();
         const matches: Token[] = [];
 
-        for (const token of [...serverSearchTokens, ...curatedSearchTokens]) {
+        for (const token of topTokensSource) {
+            if (!tokenMatchesQuery(token, query)) continue;
             const key = (token.assetId ?? '').trim() || token.address;
             if (seen.has(key)) continue;
             seen.add(key);
@@ -281,18 +237,73 @@ function useTokenSearchData(open: boolean, query: string) {
         }
 
         return matches;
-    }, [curatedSearchTokens, hasQuery, serverSearchTokens]);
-    const hasSearchError = hasQuery && Boolean(serverSearchError) && hasCuratedSearchError && searchTokens.length === 0;
+    }, [hasQuery, query, topTokensSource]);
+
+    const isMintQuery = looksLikeSolanaMintAddress(trimmedQuery);
+    const remoteQuery = isMintQuery ? trimmedQuery : debouncedQuery;
+    const remoteIsMint = looksLikeSolanaMintAddress(remoteQuery);
+    const shouldRemoteSearch =
+        open && remoteQuery.length > 0 && (remoteIsMint || remoteQuery.length >= 2);
+
+    const {
+        data: serverSearchTokens = [],
+        isLoading: isLoadingServerSearch,
+        isFetching: isFetchingServerSearch,
+        error: serverSearchError,
+    } = useSearchTokens(remoteQuery, {
+        enabled: shouldRemoteSearch,
+    });
+
+    const mergedSearchTokens = React.useMemo(() => {
+        if (!hasQuery) return [];
+
+        const seen = new Set<string>();
+        const matches: Token[] = [];
+
+        const remember = (token: Token) => {
+            const assetKey = (token.assetId ?? '').trim();
+            const addressKey = token.address.trim();
+            if (assetKey && seen.has(assetKey)) return false;
+            if (addressKey && seen.has(addressKey)) return false;
+            if (assetKey) seen.add(assetKey);
+            if (addressKey) seen.add(addressKey);
+            matches.push(token);
+            return true;
+        };
+
+        for (const token of searchTokens) {
+            remember(token);
+            if (matches.length >= 50) break;
+        }
+
+        for (const token of serverSearchTokens) {
+            remember(token);
+            if (matches.length >= 50) break;
+        }
+
+        return matches;
+    }, [hasQuery, searchTokens, serverSearchTokens]);
+
+    const hasSearchError =
+        hasQuery &&
+        mergedSearchTokens.length === 0 &&
+        Boolean(serverSearchError || memecoinsError) &&
+        !isLoadingServerSearch &&
+        !isFetchingServerSearch &&
+        !isLoadingMemecoins;
     const isInitialLoadingSearch =
         hasQuery &&
-        searchTokens.length === 0 &&
-        (isLoadingServerSearch || curatedCategoryQueries.some(result => result.isLoading));
+        mergedSearchTokens.length === 0 &&
+        (isLoadingMemecoins ||
+            isLoadingTopTokens ||
+            ((isMintQuery || debouncedQuery === trimmedQuery) &&
+                (isLoadingServerSearch || isFetchingServerSearch)));
 
     return {
         recentSearches,
         topTokens,
-        searchTokens,
-        topTokensError,
+        searchTokens: mergedSearchTokens,
+        topTokensError: topTokensError ?? memecoinsError,
         hasSearchError,
         isInitialLoadingTopTokens,
         isInitialLoadingSearch,
@@ -357,12 +368,6 @@ export function TokenSearchDialog({ open, onOpenChange }: TokenSearchDialogProps
 
     async function handleSelectToken(token: Token): Promise<void> {
         const apiAssetId = token.assetId?.trim() || null;
-        const match = getVariantByMint(token.address);
-        const registryAssetId = match?.asset.assetId ?? null;
-        const registryCoingeckoId = match?.asset.coingeckoId ?? null;
-
-        const assetId = apiAssetId ?? registryAssetId;
-        const routeName = assetId ?? token.address;
 
         setRecentTokens(prev => {
             const next: RecentSolanaTokenEntry[] = [
@@ -376,15 +381,33 @@ export function TokenSearchDialog({ open, onOpenChange }: TokenSearchDialogProps
             token_address: token.address,
             token_symbol: token.symbol,
             token_name: token.name,
-            ...(assetId ? { asset_id: assetId } : {}),
-            ...(registryCoingeckoId ? { coingecko_id: registryCoingeckoId } : {}),
+            ...(apiAssetId ? { asset_id: apiAssetId } : {}),
             search_query: query,
             source: hasQuery ? 'cmdk_search' : 'cmdk_suggested',
         });
 
         onOpenChange(false);
         setQuery('');
-        router.push(`/${encodeURIComponent(routeName)}`);
+
+        if (apiAssetId === 'spl-token' || token.address === 'spl') {
+            router.push('/spl');
+            return;
+        }
+        // Brand mint always uses the dedicated $SPL token page, not the generic CA route.
+        const splMint = getSplMint();
+        if (splMint && token.address === splMint) {
+            router.push('/spl');
+            return;
+        }
+        if (apiAssetId === 'solana') {
+            router.push('/solana');
+            return;
+        }
+        if (token.category === 'memecoin' || looksLikeSolanaMintAddress(token.address)) {
+            router.push(`/memecoin/${encodeURIComponent(token.address)}`);
+            return;
+        }
+        router.push(`/${encodeURIComponent(apiAssetId ?? token.address)}`);
     }
 
     function handleOpenChange(nextOpen: boolean) {
@@ -394,7 +417,11 @@ export function TokenSearchDialog({ open, onOpenChange }: TokenSearchDialogProps
 
     return (
         <CommandDialog open={open} onOpenChange={handleOpenChange}>
-            <CommandInput placeholder="Search tokens..." value={query} onValueChange={setQuery} />
+            <CommandInput
+                placeholder="Search by name, ticker, or paste a CA..."
+                value={query}
+                onValueChange={setQuery}
+            />
 
             <CommandList className="h-[400px] max-h-[400px]">
                 {(() => {
@@ -462,7 +489,7 @@ export function TokenSearchDialog({ open, onOpenChange }: TokenSearchDialogProps
                     if (!hasQuery) {
                         const tokenGroupHeading = (
                             <CommandGroupHeading icon={<BarChart3 className="size-3" />}>
-                                Top by volume
+                                Still trending
                             </CommandGroupHeading>
                         );
 

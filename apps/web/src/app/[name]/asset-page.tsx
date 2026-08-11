@@ -474,8 +474,6 @@ async function TokenSidebarWithDataLoader({
             buyLogoURI={buyLogoURI}
             displayName={displayName}
             description={resolveAssetDescription(descriptionOverride, globalStats?.description)}
-            tokenFeedCoinId={coingeckoId ?? undefined}
-            tokenFeedTerms={buildTokenFeedTerms({ assetId, coingeckoId, buySymbol, displayName })}
         />
     );
 }
@@ -486,21 +484,6 @@ function resolveAssetDescription(override?: string | null, coingeckoDescription?
 
     const coingecko = (coingeckoDescription ?? '').trim();
     return coingecko || null;
-}
-
-function buildTokenFeedTerms(params: {
-    assetId: string;
-    coingeckoId: string | null;
-    buySymbol?: string;
-    displayName: string;
-}): string[] {
-    return Array.from(
-        new Set(
-            [params.displayName, params.buySymbol, params.assetId, params.coingeckoId]
-                .map(value => value?.trim())
-                .filter((value): value is string => Boolean(value)),
-        ),
-    );
 }
 
 function pickFiniteNumber(primary: number | undefined | null, fallback: number | undefined | null): number | null {

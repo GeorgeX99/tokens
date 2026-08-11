@@ -1,14 +1,15 @@
 'use client';
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react';
 import { trackEvent } from '@/lib/posthog-client';
 import { TokenTable } from './token-table';
-import { TRENDING_MODE_IDS, TRENDING_WINDOW_IDS } from './home-tokens-constants';
+import { MEMECOIN_DURATION_IDS, TRENDING_MODE_IDS, TRENDING_WINDOW_IDS } from './home-tokens-constants';
 import { useHomeTokens } from './home-tokens-provider';
 import { type TrendingMode } from '@/hooks/queries/use-token-search';
 import type { HomeTabId } from '@/lib/home-highlights';
-import type { TrendingWindow } from '@/lib/types';
+import type { MemecoinTrendingDuration } from '@/lib/memecoin-trending';
+import type { Token, TrendingWindow } from '@/lib/types';
 import { Skeleton } from '@tokens/ui/skeleton';
 import { cn } from '@tokens/ui/cn';
 import { SegmentedControl } from '@solana/design-system/segmented-control';
@@ -20,6 +21,26 @@ import {
 } from '@tokens/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@tokens/ui/tooltip';
 import { Info, Settings2 } from 'lucide-react';
+import { SITE_LOGO_SRC } from '@/lib/site-brand';
+
+const MEMECOIN_PAGE_SIZE = 10;
+/** SegmentedControl icon slot is hard-coded to size-4; override to ~0.9em of the 22px tab label. */
+const MEMECOIN_TAB_ICON_CLASS = '[&_button:first-of-type_span.size-4]:!size-5';
+/**
+ * Marker class consumed by `.memecoin-tabs-root button:first-of-type::before` in globals.css —
+ * an animated conic-gradient ring that spins around the Memecoins tab's own border (sitting
+ * just outside it via a negative inset, so it never touches the button's padding/background).
+ * Tailwind's arbitrary-variant selectors can only apply real Tailwind utilities to a nested
+ * selector, not the custom `@property`-driven keyframe this effect needs, hence a plain class.
+ */
+const MEMECOIN_TABS_ROOT_CLASS = 'memecoin-tabs-root';
+
+interface MemecoinListPageResponse {
+    tokens?: Token[];
+    page?: number;
+    hasMore?: boolean;
+    duration?: MemecoinTrendingDuration;
+}
 
 const TRENDING_WINDOW_LABELS: Record<TrendingWindow, string> = {
     '5m': '5m',
@@ -83,6 +104,18 @@ function TrendingFlameIcon() {
                 </svg>
             </m.span>
         </LazyMotion>
+    );
+}
+
+function MemecoinsSplIcon() {
+    return (
+        <img
+            src={SITE_LOGO_SRC}
+            alt=""
+            aria-hidden="true"
+            className="h-full w-full object-contain"
+            draggable={false}
+        />
     );
 }
 
@@ -212,19 +245,92 @@ function CategoryTabsInner() {
         categories,
         activeCategoryId,
         isTrending,
+        isMemecoins,
         trendingMode,
         trendingWindow,
+        memecoinDuration,
         tokens,
         isLoading: activeIsLoading,
         error: activeError,
         setActiveCategoryId,
         setTrendingMode,
         setTrendingWindow,
+        setMemecoinDuration,
     } = useHomeTokens();
 
     const contentRef = useRef<HTMLDivElement>(null);
     const [minHeight, setMinHeight] = useState<number | undefined>(undefined);
     const prevCategoryRef = useRef(activeCategoryId);
+    const [memecoinPage, setMemecoinPage] = useState(1);
+    const [memecoinExtraTokens, setMemecoinExtraTokens] = useState<Token[]>([]);
+    const [memecoinHasMore, setMemecoinHasMore] = useState(true);
+    const [memecoinLoadingMore, setMemecoinLoadingMore] = useState(false);
+    const [memecoinLoadError, setMemecoinLoadError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!isMemecoins) return;
+        setMemecoinPage(1);
+        setMemecoinExtraTokens([]);
+        setMemecoinHasMore(true);
+        setMemecoinLoadError(null);
+    }, [isMemecoins, memecoinDuration]);
+
+    const memecoinDisplayTokens = useMemo(() => {
+        if (!isMemecoins || memecoinExtraTokens.length === 0) return tokens;
+        const seen = new Set(tokens.map(token => token.address));
+        const merged = [...tokens];
+        for (const token of memecoinExtraTokens) {
+            if (seen.has(token.address)) continue;
+            seen.add(token.address);
+            merged.push(token);
+        }
+        return merged;
+    }, [isMemecoins, memecoinExtraTokens, tokens]);
+
+    const tableTokens = isMemecoins ? memecoinDisplayTokens : tokens;
+
+    const fetchMemecoinPage = useCallback(async (nextPage: number, nextDuration: MemecoinTrendingDuration) => {
+        const res = await fetch(
+            `/api/memecoins?page=${nextPage}&limit=${MEMECOIN_PAGE_SIZE}&duration=${encodeURIComponent(nextDuration)}`,
+            { cache: 'no-store' },
+        );
+        if (!res.ok) throw new Error(`Failed to load memecoins (${res.status})`);
+        return (await res.json()) as MemecoinListPageResponse;
+    }, []);
+
+    const loadMoreMemecoins = useCallback(async () => {
+        if (memecoinLoadingMore || !memecoinHasMore) return;
+        setMemecoinLoadingMore(true);
+        setMemecoinLoadError(null);
+        try {
+            const nextPage = memecoinPage + 1;
+            const data = await fetchMemecoinPage(nextPage, memecoinDuration);
+            const nextTokens = data.tokens ?? [];
+            setMemecoinExtraTokens(current => {
+                const seen = new Set([...tokens, ...current].map(token => token.address));
+                const merged = [...current];
+                for (const token of nextTokens) {
+                    if (seen.has(token.address)) continue;
+                    seen.add(token.address);
+                    merged.push(token);
+                }
+                return merged;
+            });
+            setMemecoinPage(nextPage);
+            setMemecoinHasMore(Boolean(data.hasMore) && nextTokens.length > 0);
+        } catch (err) {
+            setMemecoinLoadError(err instanceof Error ? err.message : 'Failed to load more');
+        } finally {
+            setMemecoinLoadingMore(false);
+        }
+    }, [
+        fetchMemecoinPage,
+        memecoinDuration,
+        memecoinHasMore,
+        memecoinLoadingMore,
+        memecoinPage,
+        tokens,
+    ]);
 
     useLayoutEffect(() => {
         prevCategoryRef.current = activeCategoryId;
@@ -246,6 +352,7 @@ function CategoryTabsInner() {
                 ...(category.id === 'trending' && activeCategoryId === 'trending'
                     ? { icon: <TrendingFlameIcon /> }
                     : {}),
+                ...(category.id === 'memecoins' ? { icon: <MemecoinsSplIcon /> } : {}),
             })),
         [activeCategoryId, categories],
     );
@@ -254,12 +361,14 @@ function CategoryTabsInner() {
         <div>
             <div className="mx-auto max-w-7xl px-4 md:px-6">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1 overflow-x-auto pb-2 -mb-2 scrollbar-hide">
+                    <div className="min-w-0 flex-1 overflow-x-auto overflow-y-visible px-1 pb-2 pt-1 -mb-2 scrollbar-hide">
                         <SegmentedControl
                             className={cn(
                                 'w-max min-w-0 [&_button]:!text-[22px]',
                                 'bg-transparent',
                                 '[&_span.absolute.inset-0]:!bg-black/[0.04] dark:[&_span.absolute.inset-0]:!bg-white/[0.08] [&_span.absolute.inset-0]:!shadow-none',
+                                MEMECOIN_TAB_ICON_CLASS,
+                                MEMECOIN_TABS_ROOT_CLASS,
                             )}
                             items={segmentedItems}
                             value={activeCategoryId}
@@ -286,6 +395,41 @@ function CategoryTabsInner() {
                             aria-label="Token list category"
                         />
                     </div>
+
+                    {isMemecoins ? (
+                        <div className="flex shrink-0 items-center gap-2 pb-2">
+                            <div className="inline-flex items-center gap-1 rounded-full border border-border-medium bg-white p-1">
+                                {MEMECOIN_DURATION_IDS.map(option => {
+                                    const active = option === memecoinDuration;
+                                    return (
+                                        <button
+                                            key={option}
+                                            type="button"
+                                            onClick={() => {
+                                                if (option === memecoinDuration) return;
+                                                if (contentRef.current) {
+                                                    setMinHeight(contentRef.current.offsetHeight);
+                                                }
+                                                trackEvent('memecoin_duration_changed', {
+                                                    duration: option,
+                                                    previous_duration: memecoinDuration,
+                                                });
+                                                setMemecoinDuration(option);
+                                            }}
+                                            className={cn(
+                                                'rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors',
+                                                active
+                                                    ? 'bg-gray-900 text-white'
+                                                    : 'text-text-medium hover:bg-gray-50 hover:text-text-high',
+                                            )}
+                                        >
+                                            {option.toUpperCase()}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : null}
 
                     {isTrending ? (
                         <div className="flex shrink-0 items-center gap-2 pb-2">
@@ -334,14 +478,36 @@ function CategoryTabsInner() {
                             </p>
                         </div>
                     </section>
-                ) : activeIsLoading && tokens.length === 0 ? (
+                ) : activeIsLoading && tableTokens.length === 0 ? (
                     <TokenTableSkeleton />
                 ) : (
-                    <TokenTable
-                        tokens={tokens}
-                        categoryId={isTrending ? `trending:${trendingMode}` : activeCategoryId}
-                        trendingWindow={trendingWindow}
-                    />
+                    <>
+                        <TokenTable
+                            tokens={tableTokens}
+                            categoryId={isTrending ? `trending:${trendingMode}` : activeCategoryId}
+                            trendingWindow={trendingWindow}
+                            flushBottom={isMemecoins && memecoinHasMore}
+                        />
+                        {isMemecoins && memecoinHasMore ? (
+                            <div className="mx-auto max-w-7xl px-4 md:px-6 mt-4 mb-12 md:mb-20 flex flex-col items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => void loadMoreMemecoins()}
+                                    disabled={memecoinLoadingMore}
+                                    className="rounded-full border border-border-medium bg-white px-5 py-2.5 text-[14px] font-medium text-text-high transition-colors hover:bg-gray-50 disabled:opacity-60"
+                                >
+                                    {memecoinLoadingMore ? 'Loading…' : 'Load more'}
+                                </button>
+                                {memecoinLoadError ? (
+                                    <p className="text-[13px] text-text-low">{memecoinLoadError}</p>
+                                ) : null}
+                            </div>
+                        ) : isMemecoins && memecoinLoadError ? (
+                            <p className="mx-auto max-w-7xl px-4 md:px-6 mt-4 mb-12 text-center text-[13px] text-text-low">
+                                {memecoinLoadError}
+                            </p>
+                        ) : null}
+                    </>
                 )}
             </div>
         </div>
