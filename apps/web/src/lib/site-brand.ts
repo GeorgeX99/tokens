@@ -12,29 +12,35 @@ export const SITE_TAGLINE =
 export const SITE_DESCRIPTION =
     'SPL is Solana’s token standard. The official Tokens registry left memecoins out. This fork put them back in the core index. $SPL is that truth, tokenized.';
 
-function readPublicEnv(key: string): string {
-    return (process.env[key] ?? '').trim();
+/**
+ * Next only inlines `NEXT_PUBLIC_*` when accessed as a static property
+ * (`process.env.NEXT_PUBLIC_FOO`). Dynamic `process.env[key]` works on the
+ * server but is empty in the client bundle, which hydrates away UI gated on
+ * these values (e.g. the header X link).
+ */
+function readPublicEnv(value: string | undefined): string {
+    return (value ?? '').trim();
 }
 
 /** Optional mint once the memecoin is deployed. */
 export function getSplMint(): string | null {
-    const mint = readPublicEnv('NEXT_PUBLIC_SPL_MINT');
+    const mint = readPublicEnv(process.env.NEXT_PUBLIC_SPL_MINT);
     return mint.length > 0 ? mint : null;
 }
 
 /** `NEXT_PUBLIC_X_URL` */
 export function getSiteXUrl(): string {
-    return readPublicEnv('NEXT_PUBLIC_X_URL');
+    return readPublicEnv(process.env.NEXT_PUBLIC_X_URL);
 }
 
 /** `NEXT_PUBLIC_FORK_URL` — this project’s GitHub repo. */
 export function getSiteForkUrl(): string {
-    return readPublicEnv('NEXT_PUBLIC_FORK_URL');
+    return readPublicEnv(process.env.NEXT_PUBLIC_FORK_URL);
 }
 
 /** `NEXT_PUBLIC_UPSTREAM_URL` — repo this project was forked from. */
 export function getUpstreamRepoUrl(): string {
-    return readPublicEnv('NEXT_PUBLIC_UPSTREAM_URL');
+    return readPublicEnv(process.env.NEXT_PUBLIC_UPSTREAM_URL);
 }
 
 /** `owner/repo` slug from `NEXT_PUBLIC_UPSTREAM_URL`, when set. */
