@@ -11,24 +11,46 @@ export const SITE_TAGLINE =
 export const SITE_DESCRIPTION =
     'SPL is Solana’s token standard. The official Tokens registry left memecoins out. This fork put them back in the core index. $SPL is that truth, tokenized.';
 
+function readPublicEnv(key: string): string {
+    return (process.env[key] ?? '').trim();
+}
+
 /** Optional mint once the memecoin is deployed. */
 export function getSplMint(): string | null {
-    const mint = (process.env.NEXT_PUBLIC_SPL_MINT ?? '').trim();
+    const mint = readPublicEnv('NEXT_PUBLIC_SPL_MINT');
     return mint.length > 0 ? mint : null;
 }
 
+/** `NEXT_PUBLIC_X_URL` */
 export function getSiteXUrl(): string {
-    return (process.env.NEXT_PUBLIC_X_URL ?? 'https://x.com/SPLToken').trim();
+    return readPublicEnv('NEXT_PUBLIC_X_URL');
 }
 
+/** `NEXT_PUBLIC_FORK_URL` — this project’s GitHub repo. */
 export function getSiteForkUrl(): string {
-    return (process.env.NEXT_PUBLIC_FORK_URL ?? 'https://github.com/GeorgeX99/tokens').trim();
+    return readPublicEnv('NEXT_PUBLIC_FORK_URL');
 }
 
+/** `NEXT_PUBLIC_UPSTREAM_URL` — repo this project was forked from. */
 export function getUpstreamRepoUrl(): string {
-    return (
-        process.env.NEXT_PUBLIC_UPSTREAM_URL ?? 'https://github.com/solana-foundation/tokens'
-    ).trim();
+    return readPublicEnv('NEXT_PUBLIC_UPSTREAM_URL');
+}
+
+/** `owner/repo` slug from `NEXT_PUBLIC_UPSTREAM_URL`, when set. */
+export function getUpstreamRepoSlug(): string {
+    const url = getUpstreamRepoUrl();
+    if (!url) return '';
+    try {
+        return new URL(url).pathname.replace(/^\/+|\/+$/g, '');
+    } catch {
+        return '';
+    }
+}
+
+/** Badge copy for the fork attribution, e.g. "Forked from solana-foundation/tokens". */
+export function getForkedFromLabel(): string {
+    const slug = getUpstreamRepoSlug();
+    return slug ? `Forked from ${slug}` : 'Forked from upstream';
 }
 
 export const SPL_TOKEN_BASICS_URL = 'https://solana.com/docs/tokens/basics';

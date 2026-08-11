@@ -5,9 +5,9 @@ import { Github } from 'lucide-react';
 import { FooterAsteroidsEasterEgg } from '@/app/assets-api/footer-asteroids-easter-egg';
 import { trackEvent } from '@/lib/posthog-client';
 import {
+    getForkedFromLabel,
     getSiteForkUrl,
     getSiteXUrl,
-    getUpstreamRepoUrl,
     SITE_NAME,
     SPL_TOKEN_BASICS_URL,
 } from '@/lib/site-brand';
@@ -31,7 +31,7 @@ export function SiteFooter({ tone = 'dark', asteroidsOpen, onAsteroidsOpenChange
     const canLaunchAsteroids = asteroidsOpen !== undefined && onAsteroidsOpenChange !== undefined;
     const xUrl = getSiteXUrl();
     const forkUrl = getSiteForkUrl();
-    const upstreamUrl = getUpstreamRepoUrl();
+    const forkedFromLabel = getForkedFromLabel();
 
     return (
         <>
@@ -59,22 +59,24 @@ export function SiteFooter({ tone = 'dark', asteroidsOpen, onAsteroidsOpenChange
                                 SPL is Solana’s token standard. Most of what people build are memecoins. $SPL is that
                                 truth, tokenized.
                             </p>
-                            <a
-                                href={upstreamUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-full border border-border-medium bg-white px-2.5 py-1 text-[12px] font-medium text-text-high transition-colors hover:bg-gray-50"
-                                onClick={() =>
-                                    trackEvent('external_link_clicked', {
-                                        link_type: 'github_upstream',
-                                        link_url: upstreamUrl,
-                                        source: 'site_footer',
-                                    })
-                                }
-                            >
-                                <Github className="size-3.5 shrink-0" aria-hidden />
-                                Forked from solana-foundation/tokens
-                            </a>
+                            {forkUrl ? (
+                                <a
+                                    href={forkUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-border-medium bg-white px-2.5 py-1 text-[12px] font-medium text-text-high transition-colors hover:bg-gray-50"
+                                    onClick={() =>
+                                        trackEvent('external_link_clicked', {
+                                            link_type: 'github',
+                                            link_url: forkUrl,
+                                            source: 'site_footer',
+                                        })
+                                    }
+                                >
+                                    <Github className="size-3.5 shrink-0" aria-hidden />
+                                    {forkedFromLabel}
+                                </a>
+                            ) : null}
                         </div>
                     </div>
                     <div className="flex flex-col items-start gap-6">
@@ -124,21 +126,23 @@ export function SiteFooter({ tone = 'dark', asteroidsOpen, onAsteroidsOpenChange
                     <div className="flex flex-col items-start gap-6">
                         <p className={labelClass}>Socials & resources</p>
                         <div className="flex flex-col items-start gap-3">
-                            <a
-                                href={xUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={linkClass}
-                                onClick={() =>
-                                    trackEvent('external_link_clicked', {
-                                        link_type: 'x',
-                                        link_url: xUrl,
-                                        source: 'site_footer',
-                                    })
-                                }
-                            >
-                                X
-                            </a>
+                            {xUrl ? (
+                                <a
+                                    href={xUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={linkClass}
+                                    onClick={() =>
+                                        trackEvent('external_link_clicked', {
+                                            link_type: 'x',
+                                            link_url: xUrl,
+                                            source: 'site_footer',
+                                        })
+                                    }
+                                >
+                                    X
+                                </a>
+                            ) : null}
                             <a
                                 href={SPL_TOKEN_BASICS_URL}
                                 target="_blank"
@@ -153,21 +157,6 @@ export function SiteFooter({ tone = 'dark', asteroidsOpen, onAsteroidsOpenChange
                                 }
                             >
                                 SPL Token basics
-                            </a>
-                            <a
-                                href={forkUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={linkClass}
-                                onClick={() =>
-                                    trackEvent('external_link_clicked', {
-                                        link_type: 'github',
-                                        link_url: forkUrl,
-                                        source: 'site_footer',
-                                    })
-                                }
-                            >
-                                Github fork
                             </a>
                         </div>
                     </div>

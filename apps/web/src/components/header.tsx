@@ -129,22 +129,24 @@ export function Header() {
                     >
                         Basics
                     </a>
-                    <a
-                        href={xUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="SPL Token on X"
-                        className="inline-flex size-9 items-center justify-center rounded-full bg-text-extra-high text-background transition-[colors,transform] duration-150 hover:bg-text-high active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                        onClick={() =>
-                            trackEvent('external_link_clicked', {
-                                link_type: 'x',
-                                link_url: xUrl,
-                                source: 'header',
-                            })
-                        }
-                    >
-                        <IconXLogo className="size-4 fill-current" aria-hidden="true" />
-                    </a>
+                    {xUrl ? (
+                        <a
+                            href={xUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="SPL Token on X"
+                            className="inline-flex size-9 items-center justify-center rounded-full bg-text-extra-high text-background transition-[colors,transform] duration-150 hover:bg-text-high active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                            onClick={() =>
+                                trackEvent('external_link_clicked', {
+                                    link_type: 'x',
+                                    link_url: xUrl,
+                                    source: 'header',
+                                })
+                            }
+                        >
+                            <IconXLogo className="size-4 fill-current" aria-hidden="true" />
+                        </a>
+                    ) : null}
                 </nav>
             </div>
         </header>

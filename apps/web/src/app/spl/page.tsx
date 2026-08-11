@@ -13,6 +13,7 @@ import { MemecoinPriceChartSection } from '@/app/memecoin/[mint]/memecoin-price-
 import { TokenHeader } from '@/app/token/[address]/components/token-header';
 import { fetchSolanaMemecoinDetail } from '@/lib/dexscreener-memecoins';
 import {
+    getForkedFromLabel,
     getSiteForkUrl,
     getSiteXUrl,
     getSplMint,
@@ -42,6 +43,7 @@ export default async function SplTokenPage() {
     const live = buyAddress ? await fetchSolanaMemecoinDetail(buyAddress) : null;
     const xUrl = getSiteXUrl();
     const forkUrl = getSiteForkUrl();
+    const forkedFromLabel = getForkedFromLabel();
     const displayLogo = SITE_LOGO_SRC;
     const pageMint = buyAddress ?? '11111111111111111111111111111111';
     const dexScreenerUrl =
@@ -83,8 +85,8 @@ export default async function SplTokenPage() {
                     }
                     explorerAriaLabel={buyAddress ? 'View on Solscan' : 'SPL Token basics'}
                     links={{
-                        website: forkUrl,
-                        twitter: xUrl,
+                        ...(forkUrl ? { website: forkUrl } : {}),
+                        ...(xUrl ? { twitter: xUrl } : {}),
                     }}
                 />
             }
@@ -138,24 +140,28 @@ export default async function SplTokenPage() {
                         SPL Token basics
                         <ArrowUpRight className="size-3.5" aria-hidden />
                     </a>
-                    <a
-                        href={xUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-border-medium bg-white px-4 py-2 text-[14px] font-medium text-text-high transition-colors hover:bg-gray-50"
-                    >
-                        X
-                        <ArrowUpRight className="size-3.5" aria-hidden />
-                    </a>
-                    <a
-                        href={forkUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-border-medium bg-white px-4 py-2 text-[14px] font-medium text-text-high transition-colors hover:bg-gray-50"
-                    >
-                        Github fork
-                        <ArrowUpRight className="size-3.5" aria-hidden />
-                    </a>
+                    {xUrl ? (
+                        <a
+                            href={xUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-border-medium bg-white px-4 py-2 text-[14px] font-medium text-text-high transition-colors hover:bg-gray-50"
+                        >
+                            X
+                            <ArrowUpRight className="size-3.5" aria-hidden />
+                        </a>
+                    ) : null}
+                    {forkUrl ? (
+                        <a
+                            href={forkUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-border-medium bg-white px-4 py-2 text-[14px] font-medium text-text-high transition-colors hover:bg-gray-50"
+                        >
+                            {forkedFromLabel}
+                            <ArrowUpRight className="size-3.5" aria-hidden />
+                        </a>
+                    ) : null}
                     <Link
                         href="/solana"
                         className="inline-flex items-center gap-1.5 rounded-full border border-border-medium bg-white px-4 py-2 text-[14px] font-medium text-text-high transition-colors hover:bg-gray-50"

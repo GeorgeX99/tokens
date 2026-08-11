@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="apps/web/public/header.png" alt="SPLTokens.xyz" width="100%" />
+</p>
+
 # Tokens
 
 Tokens is the open-source monorepo for the Tokens website, API, docs, and services. This is the live repository the project is developed and deployed from — it is not a mirror or a snapshot.

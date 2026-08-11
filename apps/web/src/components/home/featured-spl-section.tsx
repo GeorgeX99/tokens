@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, ChevronDown } from 'lucide-react';
+import { ArrowRight, ChevronDown, Github } from 'lucide-react';
 import { IconTriangleFill } from 'symbols-react';
 
 import { Liveline } from 'liveline';
@@ -20,6 +20,8 @@ import {
 } from '@/lib/memecoin-trending';
 import { trackEvent } from '@/lib/posthog-client';
 import {
+    getForkedFromLabel,
+    getSiteForkUrl,
     SITE_LOGO_SRC,
     SITE_TICKER,
     SITE_TOKEN_NAME,
@@ -68,6 +70,8 @@ export function FeaturedSplSection({
 
     const chartAddress = mint ?? '';
     const href = '/spl';
+    const forkUrl = getSiteForkUrl();
+    const forkedFromLabel = getForkedFromLabel();
 
     const live = useLiveMemecoinPrice(chartAddress, {
         enabled: Boolean(chartAddress),
@@ -275,6 +279,25 @@ export function FeaturedSplSection({
                 <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-text-medium text-pretty">
                     {ABOUT_BLURB}
                 </p>
+
+                {forkUrl ? (
+                    <a
+                        href={forkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border-medium bg-white px-2.5 py-1 text-[12px] font-medium text-text-high transition-colors hover:bg-gray-50"
+                        onClick={() =>
+                            trackEvent('external_link_clicked', {
+                                link_type: 'github',
+                                link_url: forkUrl,
+                                source: 'home_hero',
+                            })
+                        }
+                    >
+                        <Github className="size-3.5 shrink-0" aria-hidden />
+                        {forkedFromLabel}
+                    </a>
+                ) : null}
 
                 <div className="mt-8 w-full text-left">
                     <Link
