@@ -1,6 +1,7 @@
 {
   "extends": "@tokens/typescript-config/nextjs.json",
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@/*": ["./src/*"]
     }
