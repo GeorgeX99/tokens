@@ -7,11 +7,6 @@ import {
     type MemecoinTrendingDuration,
     volumeForDuration,
 } from '@/lib/memecoin-trending';
-import {
-    isRugFromMarketSignals,
-    shouldDropMemecoinAsRug,
-    type RugcheckTokenInfoReport,
-} from '@/lib/memecoin-scam-filter';
 import type { Token } from '@/lib/types';
 import { looksLikeSolanaMintAddress } from '@/lib/solana-address';
 
@@ -32,12 +27,8 @@ const PUMP_FRONTEND_ORIGIN = 'https://frontend-api-v3.pump.fun';
 const DEXSCREENER_ORIGIN = 'https://api.dexscreener.com';
 const SOLANA_CHAIN_ID = 'solana';
 const FETCH_TIMEOUT_MS = 6_000;
-const RUGCHECK_TIMEOUT_MS = 10_000;
-const WEBACY_TIMEOUT_MS = 8_000;
-const TOKEN_INFO_CONCURRENCY = 4;
 const MAX_BATCH_SIZE = 30;
 const DISCOVERY_REVALIDATE_SECONDS = 30;
-const WEBACY_ORIGIN = 'https://api.webacy.com';
 
 const MIN_LIQUIDITY_USD = 5_000;
 const MIN_VOLUME_24H_USD = 1_000;
@@ -45,8 +36,6 @@ const DEFAULT_PAGE_SIZE = 10;
 const DEFAULT_RESULT_LIMIT = 10;
 /** Always discover at least this many mint candidates (display page size can be smaller). */
 const MIN_DISCOVERY_CANDIDATES = 40;
-/** Over-fetch before rug drops so the page still fills. */
-const RUG_FILTER_OVERFETCH = 40;
 
 // Filters out phishing bait / corporate-impersonation style names that otherwise pass
 // the liquidity and volume checks.
@@ -164,29 +153,6 @@ async function fetchDexscreenerJson<T>(
     }
 }
 
-/** Rugcheck must not cache misses/429s — that previously fail-opened rugs onto the board. */
-async function fetchRugcheckReport(mint: string): Promise<RugcheckReport | null> {
-    const url = `https://api.rugcheck.xyz/v1/tokens/${encodeURIComponent(mint)}/report`;
-    const first = await fetchDexscreenerJson<RugcheckReport>(url, RUGCHECK_TIMEOUT_MS, { cache: 'no-store' });
-    if (first) return first;
-    return fetchDexscreenerJson<RugcheckReport>(url, RUGCHECK_TIMEOUT_MS, { cache: 'no-store' });
-}
-
-async function mapPool<T, R>(items: readonly T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]> {
-    if (items.length === 0) return [];
-    const results = new Array<R>(items.length);
-    let nextIndex = 0;
-    const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-        while (true) {
-            const index = nextIndex++;
-            if (index >= items.length) return;
-            results[index] = await worker(items[index]!);
-        }
-    });
-    await Promise.all(runners);
-    return results;
-}
-
 function chunk<T>(items: T[], size: number): T[][] {
     const out: T[][] = [];
     for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
@@ -282,12 +248,6 @@ function looksSuspicious(name: string, symbol: string): boolean {
     return SUSPICIOUS_TEXT_PATTERN.test(name) || SUSPICIOUS_TEXT_PATTERN.test(symbol);
 }
 
-function pairAgeHours(pair: DexscreenerPair, nowMs = Date.now()): number | null {
-    const created = pair.pairCreatedAt;
-    if (typeof created !== 'number' || !Number.isFinite(created) || created <= 0) return null;
-    return Math.max(0, (nowMs - created) / 3_600_000);
-}
-
 function passesQualityFilters(pair: DexscreenerPair): boolean {
     const address = pair.baseToken?.address?.trim();
     const name = pair.baseToken?.name?.trim();
@@ -302,17 +262,6 @@ function passesQualityFilters(pair: DexscreenerPair): boolean {
     if (volume24h < MIN_VOLUME_24H_USD) return false;
     if (looksSuspicious(name, symbol)) return false;
     if (collidesWithExistingListing(address, name, symbol)) return false;
-    // Wash dumps / cartoon pumps — no Token Info needed.
-    if (
-        isRugFromMarketSignals({
-            liquidityUsd: liquidity,
-            volume24hUsd: volume24h,
-            priceChange24hPercent: pair.priceChange?.h24 ?? 0,
-            pairAgeHours: pairAgeHours(pair),
-        })
-    ) {
-        return false;
-    }
     return true;
 }
 
@@ -416,10 +365,9 @@ export async function fetchTrendingSolanaMemecoinsPage(options: {
         return { tokens: [], page, pageSize, hasMore: false, duration };
     }
 
-    // Scam filters drop a lot of “trending” trash — keep a mint backlog so the page can refill.
     const mintQueue = [...discovered.mints];
     const seenMints = new Set(mintQueue);
-    const discoveryTarget = Math.max(MIN_DISCOVERY_CANDIDATES, pageSize + RUG_FILTER_OVERFETCH);
+    const discoveryTarget = Math.max(MIN_DISCOVERY_CANDIDATES, pageSize);
     // Page 1: pull a fat Pump backlog even when the UI only shows 10 rows.
     if (page === 1) {
         let pumpPage = 1;
@@ -460,9 +408,6 @@ export async function fetchTrendingSolanaMemecoinsPage(options: {
         });
     }
 
-    // Over-fetch so Token Info / market rug drops can still fill the page.
-    tokens = tokens.slice(0, pageSize + RUG_FILTER_OVERFETCH);
-    tokens = await filterRugsByTokenInfo(tokens);
     tokens = tokens.slice(0, pageSize);
     tokens = await enrichMissingMemecoinLogos(tokens);
 
@@ -491,76 +436,9 @@ function txnCount(bucket: { buys?: number; sells?: number } | undefined): number
     return total > 0 ? total : null;
 }
 
-interface RugcheckReport extends RugcheckTokenInfoReport {
+interface RugcheckReport {
     totalHolders?: number;
     token?: { supply?: number; decimals?: number };
-}
-
-interface WebacyTradingLite {
-    Top10Holders?: number;
-    BundlerPercentageHolding?: number;
-    BundlerPercentageOnLaunch?: number;
-    SniperPercentageHolding?: number;
-    SniperPercentageOnLaunch?: number;
-    DevHoldingPercentage?: number;
-}
-
-function webacyApiKey(): string | null {
-    const key = process.env.WEBACY_API_KEY?.trim() || process.env.DD_API_KEY?.trim();
-    return key && key.length > 0 ? key : null;
-}
-
-async function fetchWebacyTradingLite(mint: string): Promise<WebacyTradingLite | null> {
-    const apiKey = webacyApiKey();
-    if (!apiKey) return null;
-    try {
-        const res = await fetch(`${WEBACY_ORIGIN}/trading-lite/${encodeURIComponent(mint)}?chain=sol`, {
-            headers: {
-                accept: 'application/json',
-                'x-api-key': apiKey,
-                'user-agent': 'Mozilla/5.0 (compatible; SPLTokenMemecoins/1.0)',
-            },
-            next: { revalidate: DISCOVERY_REVALIDATE_SECONDS },
-            signal: AbortSignal.timeout(WEBACY_TIMEOUT_MS),
-        });
-        if (!res.ok) return null;
-        return (await res.json()) as WebacyTradingLite;
-    } catch {
-        return null;
-    }
-}
-
-/**
- * Drop rugs using Token Info (Top10 / Insiders / Bundlers / Dev / graph insiders)
- * plus Dex market fingerprints. Fail-closed when Token Info APIs miss.
- */
-async function filterRugsByTokenInfo(tokens: Token[]): Promise<Token[]> {
-    if (tokens.length === 0) return tokens;
-
-    const reports = await mapPool(tokens, TOKEN_INFO_CONCURRENCY, async token => {
-        const [rug, webacy] = await Promise.all([
-            fetchRugcheckReport(token.address),
-            fetchWebacyTradingLite(token.address),
-        ]);
-
-        if (!rug && !webacy) return [token.address, null] as const;
-
-        const merged: RugcheckTokenInfoReport = {
-            ...(rug ?? {}),
-            ...(webacy ?? {}),
-        };
-        return [token.address, merged] as const;
-    });
-
-    const byMint = new Map(reports);
-    return tokens.filter(token => {
-        const report = byMint.get(token.address);
-        return !shouldDropMemecoinAsRug(report ?? null, {
-            liquidityUsd: token.liquidity,
-            volume24hUsd: token.volume24hUSD,
-            priceChange24hPercent: token.priceChange24hPercent,
-        });
-    });
 }
 
 interface PumpCoinMeta {
