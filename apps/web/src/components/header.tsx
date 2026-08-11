@@ -96,10 +96,10 @@ export function Header() {
                     </div>
                 </div>
 
-                <nav aria-label="Main navigation" className="hidden items-center gap-3 sm:flex lg:gap-5">
+                <nav aria-label="Main navigation" className="flex items-center gap-3 lg:gap-5">
                     <Link
                         href="/"
-                        className="inline-flex h-10 items-center px-2 text-[length:var(--text-button-lg)] font-semibold leading-none text-text-medium transition-colors duration-150 hover:text-text-extra-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className="hidden h-10 items-center px-2 text-[length:var(--text-button-lg)] font-semibold leading-none text-text-medium transition-colors duration-150 hover:text-text-extra-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:inline-flex"
                         onClick={event => {
                             trackEvent('nav_link_clicked', {
                                 destination: 'memecoins',
@@ -135,7 +135,7 @@ export function Header() {
                             target="_blank"
                             rel="noopener noreferrer"
                             aria-label="SPL Token on X"
-                            className="inline-flex size-9 items-center justify-center rounded-full bg-text-extra-high text-background transition-[colors,transform] duration-150 hover:bg-text-high active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-text-extra-high text-background transition-[colors,transform] duration-150 hover:bg-text-high active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                             onClick={() =>
                                 trackEvent('external_link_clicked', {
                                     link_type: 'x',
