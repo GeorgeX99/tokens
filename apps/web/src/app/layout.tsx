@@ -7,15 +7,15 @@ import { GoogleAnalytics } from '@/components/google-analytics';
 import { Header } from '@/components/header';
 import { QueryProvider } from '@/providers/query-provider';
 import { SearchVisibilityProvider } from '@/components/search-visibility-provider';
-import { SITE_DESCRIPTION } from '@/lib/site-brand';
+import { SITE_DESCRIPTION, SITE_TITLE } from '@/lib/site-brand';
 import './globals.css';
 
 const GA_MEASUREMENT_ID = process.env.NODE_ENV === 'production' ? 'G-CWCQMKEH99' : undefined;
 
 export const metadata: Metadata = {
     title: {
-        default: 'SPL Token | $SPL',
-        template: '%s | SPL Token',
+        default: SITE_TITLE,
+        template: '%s | SPL',
     },
     description: SITE_DESCRIPTION,
     icons: {

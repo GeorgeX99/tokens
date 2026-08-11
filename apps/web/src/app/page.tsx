@@ -8,16 +8,15 @@ import {
     getSplMint,
     SITE_DESCRIPTION,
     SITE_NAME,
-    SITE_TICKER,
-    SITE_TOKEN_NAME,
+    SITE_TITLE,
 } from '@/lib/site-brand';
 import { looksLikeSolanaMintAddress } from '@/lib/solana-address';
 
 export const metadata: Metadata = {
-    title: `${SITE_TOKEN_NAME} | $${SITE_TICKER}`,
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     openGraph: {
-        title: `${SITE_TOKEN_NAME} ($${SITE_TICKER})`,
+        title: SITE_TITLE,
         description: SITE_DESCRIPTION,
         siteName: SITE_NAME,
     },

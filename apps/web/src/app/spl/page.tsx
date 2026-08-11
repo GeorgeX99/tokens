@@ -21,6 +21,7 @@ import {
     SITE_LOGO_SRC,
     SITE_NAME,
     SITE_TICKER,
+    SITE_TITLE,
     SITE_TOKEN_NAME,
     SPL_ABOUT_HTML,
     SPL_TOKEN_BASICS_URL,
@@ -28,10 +29,10 @@ import {
 import { looksLikeSolanaMintAddress } from '@/lib/solana-address';
 
 export const metadata: Metadata = {
-    title: `${SITE_TOKEN_NAME} | $${SITE_TICKER}`,
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     openGraph: {
-        title: `${SITE_TOKEN_NAME} ($${SITE_TICKER})`,
+        title: SITE_TITLE,
         description: SITE_DESCRIPTION,
         siteName: SITE_NAME,
     },

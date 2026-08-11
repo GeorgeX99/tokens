@@ -3,6 +3,7 @@
 export const SITE_NAME = 'SPL Token';
 export const SITE_TICKER = 'SPL';
 export const SITE_TOKEN_NAME = 'SPL Token';
+export const SITE_TITLE = 'SPL | The heartbeat of Solana';
 export const SITE_LOGO_SRC = '/logos/SPL-Token.svg';
 
 export const SITE_TAGLINE =
