@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { ArrowRight, ChevronDown } from 'lucide-react';
 import { IconTriangleFill } from 'symbols-react';
 
+import { Liveline } from 'liveline';
+
 import { AnimatedPrice } from '@/components/animated-price';
 import { formatUsdMarketCap, resolveSupplyFromMarketCap } from '@/components/charts/price-chart-utils';
 import { InlinePriceChart } from '@/components/inline-price-chart';
@@ -215,9 +217,26 @@ export function FeaturedSplSection({
                             realtimePoint={live.realtimePoint}
                         />
                     ) : (
-                        <div className="flex h-full w-full items-center justify-center rounded-sm bg-gray-50 text-[13px] text-text-low">
-                            Chart soon
-                        </div>
+                        <Liveline
+                            data={[]}
+                            value={0}
+                            window={3600}
+                            theme="light"
+                            color="#6b7280"
+                            grid={false}
+                            badge={false}
+                            fill={false}
+                            loading={true}
+                            pulse={false}
+                            momentum={false}
+                            scrub={false}
+                            padding={[8, 8, 8, 8]}
+                            formatTime={() => ''}
+                            tooltipY={-1000}
+                            tooltipOutline={false}
+                            className="w-full h-full"
+                            style={{ height: '100%', width: '100%' }}
+                        />
                     )}
                 </div>
 
