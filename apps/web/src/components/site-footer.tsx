@@ -56,7 +56,8 @@ export function SiteFooter({ tone = 'dark', asteroidsOpen, onAsteroidsOpenChange
                         <p className={labelClass}>About</p>
                         <div className="flex max-w-[280px] flex-col items-start gap-3">
                             <p className="text-[13px] leading-relaxed text-text-medium">
-                                Everything on Solana is an SPL Token. Most of it is memecoins. $SPL is the default.
+                                SPL is Solana’s token standard. Most of what people build are memecoins. $SPL is that
+                                truth, tokenized.
                             </p>
                             <a
                                 href={upstreamUrl}

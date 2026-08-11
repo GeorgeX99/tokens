@@ -19,6 +19,13 @@ import {
 } from '@tanstack/react-table';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import type { Token, TrendingWindow } from '@/lib/types';
+import {
+    changeForDuration,
+    daysForMemecoinDuration,
+    intervalsForMemecoinDuration,
+    isMemecoinTrendingDuration,
+    type MemecoinTrendingDuration,
+} from '@/lib/memecoin-trending';
 import { cleanTokenName, getTokenLogoURLWithSecondarySymbol } from '@/lib/logo-overrides';
 import { normalizeLogoSrc } from '@/lib/normalize-logo-src';
 import { getWrapperGroupByAddress } from '@tokens/asset-registry/compat';
@@ -387,6 +394,14 @@ function isTrendingVariant(variant: TokenTableVariantConfig): boolean {
     return variant.id === 'trending' || variant.id.startsWith('trending:');
 }
 
+function isMemecoinsVariant(variant: TokenTableVariantConfig): boolean {
+    return variant.id === 'memecoins';
+}
+
+function resolveMemecoinDuration(window: TrendingWindow): MemecoinTrendingDuration {
+    return isMemecoinTrendingDuration(window) ? window : '1h';
+}
+
 function getVolumeForWindow(token: Token, window: TrendingWindow): number | undefined {
     switch (window) {
         case '5m':
@@ -492,8 +507,15 @@ function TokenLogo({ token }: { token: Token }) {
 
 function createColumns(variant: TokenTableVariantConfig, trendingWindow: TrendingWindow) {
     const isTrending = isTrendingVariant(variant);
+    const isMemecoins = isMemecoinsVariant(variant);
     const windowLabel = TRENDING_WINDOW_LABELS[trendingWindow];
-    const showTrailing24hVolume = variant.columns.showVolume24hUSD && !(isTrending && trendingWindow === '24h');
+    const memecoinDuration = isMemecoins ? resolveMemecoinDuration(trendingWindow) : null;
+    const memecoinChartDays = memecoinDuration ? daysForMemecoinDuration(memecoinDuration) : null;
+    const memecoinIntervals = memecoinDuration ? intervalsForMemecoinDuration(memecoinDuration) : null;
+    // Memecoins replace 24h volume with the selected duration. Trending keeps a trailing 24h
+    // column except when the window itself is already 24h.
+    const showTrailing24hVolume =
+        variant.columns.showVolume24hUSD && !isMemecoins && !(isTrending && trendingWindow === '24h');
 
     const cols = [
         variant.columns.showRank
@@ -576,7 +598,7 @@ function createColumns(variant: TokenTableVariantConfig, trendingWindow: Trendin
         variant.columns.showChart24h
             ? columnHelper.display({
                   id: 'chart',
-                  header: 'Last 24h',
+                  header: isMemecoins ? `Last ${windowLabel}` : 'Last 24h',
                   cell: info => {
                       const token = info.row.original;
                       return (
@@ -586,11 +608,18 @@ function createColumns(variant: TokenTableVariantConfig, trendingWindow: Trendin
                                   coingeckoId={token.coingeckoId}
                                   useCanonicalAssetChart={token.canonicalMarketSource === 'clickhouse_stock'}
                                   address={token.address}
-                                  percentChange24h={token.priceChange24hPercent}
+                                  percentChange24h={
+                                      memecoinDuration
+                                          ? changeForDuration(token, memecoinDuration)
+                                          : token.priceChange24hPercent
+                                  }
                                   symbol={token.symbol}
                                   emptyText="no chart data available"
-                                  fallbackDays={INLINE_CHART_FALLBACK_DAYS}
+                                  fallbackDays={isMemecoins ? undefined : INLINE_CHART_FALLBACK_DAYS}
                                   preferDexscreener={token.category === 'memecoin'}
+                                  days={memecoinChartDays ?? undefined}
+                                  primaryInterval={memecoinIntervals?.primary}
+                                  fallbackInterval={memecoinIntervals?.fallback}
                               />
                           </div>
                       );
@@ -611,6 +640,17 @@ function createColumns(variant: TokenTableVariantConfig, trendingWindow: Trendin
             ? columnHelper.accessor('volume24hUSD', {
                   header: '24h Volume',
                   cell: info => <Volume24hCell token={info.row.original} showUnderlyingVolume={!isTrending} />,
+              })
+            : null,
+        isMemecoins && variant.columns.showVolume24hUSD
+            ? columnHelper.accessor(row => getVolumeForWindow(row, trendingWindow) ?? 0, {
+                  id: `volume:${trendingWindow}`,
+                  header: `${windowLabel} Volume`,
+                  cell: info => (
+                      <span className="block w-full text-right text-[14px] text-[#2D2D2D] font-medium tabular-nums">
+                          {formatOptionalVolume(info.getValue())}
+                      </span>
+                  ),
               })
             : null,
         variant.columns.showVolume1hUSD && isTrending
@@ -819,7 +859,13 @@ export function TokenTable({
         () => tokens.filter(token => shouldShowTokenInTable(token, variant)),
         [tokens, variant],
     );
-    const [sorting, setSorting] = React.useState<SortingState>(() => variant.defaultSorting);
+    const defaultSorting = React.useMemo<SortingState>(() => {
+        if (variant.id === 'memecoins') {
+            return [{ id: `volume:${trendingWindow}`, desc: true }];
+        }
+        return variant.defaultSorting;
+    }, [trendingWindow, variant.defaultSorting, variant.id]);
+    const [sorting, setSorting] = React.useState<SortingState>(() => defaultSorting);
     const tableTopRef = React.useRef<HTMLDivElement>(null);
     const [scrollMargin, setScrollMargin] = React.useState(0);
     const { handleRowClick, handleRowPointerEnter, handleRowPointerLeave, prefetchRow } = useTokenRowNavigation(
@@ -828,11 +874,15 @@ export function TokenTable({
     );
 
     // Reset sorting when the variant changes — during render, not in an effect, so the
-    // table never sees a sort for a column the new variant doesn't have.
-    const [prevVariantId, setPrevVariantId] = React.useState(variant.id);
-    if (prevVariantId !== variant.id) {
-        setPrevVariantId(variant.id);
-        setSorting(variant.defaultSorting);
+    // table never sees a sort for a column the new variant doesn't have. Memecoins also
+    // reset when the duration window changes (volume column id is duration-scoped).
+    const [prevSortKey, setPrevSortKey] = React.useState(
+        () => (variant.id === 'memecoins' ? `${variant.id}:${trendingWindow}` : variant.id),
+    );
+    const sortKey = variant.id === 'memecoins' ? `${variant.id}:${trendingWindow}` : variant.id;
+    if (prevSortKey !== sortKey) {
+        setPrevSortKey(sortKey);
+        setSorting(defaultSorting);
     }
 
     // Belt and braces: only apply sort rules whose column exists in the current column

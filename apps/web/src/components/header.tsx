@@ -98,15 +98,19 @@ export function Header() {
 
                 <nav aria-label="Main navigation" className="hidden items-center gap-3 sm:flex lg:gap-5">
                     <Link
-                        href="/#memecoins"
+                        href="/"
                         className="inline-flex h-10 items-center px-2 text-[length:var(--text-button-lg)] font-semibold leading-none text-text-medium transition-colors duration-150 hover:text-text-extra-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-extra-high/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                        onClick={() =>
+                        onClick={event => {
                             trackEvent('nav_link_clicked', {
                                 destination: 'memecoins',
-                                link_url: '/#memecoins',
+                                link_url: '/',
                                 source: 'header',
-                            })
-                        }
+                            });
+                            if (pathname === '/') {
+                                event.preventDefault();
+                                document.getElementById('memecoins')?.scrollIntoView({ behavior: 'smooth' });
+                            }
+                        }}
                     >
                         Explore
                     </Link>

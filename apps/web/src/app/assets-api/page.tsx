@@ -17,7 +17,7 @@ import { FinalCta } from './final-cta';
 export const metadata: Metadata = {
     title: 'Assets API | Tokens',
     description:
-        'One API for every asset on Solana. Resolve, fetch, chart, and search — no stitching, no guessing.',
+        'One API for every asset on Solana. Resolve, fetch, chart, and search. No stitching, no guessing.',
 };
 
 const DEMO_QUERIES = ['tesla', 'bitcoin', 'nvidia', 'gold'] as const;

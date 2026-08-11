@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: MemecoinPageProps): Promise<M
 
     return {
         title: `${token.name} (${token.symbol})`,
-        description: `${token.name} (${token.symbol}) is a Solana memecoin discovered live via DexScreener — price, liquidity, and volume.`,
+        description: `${token.name} (${token.symbol}) is a Solana memecoin discovered live via DexScreener: price, liquidity, and volume.`,
         robots: { index: false, follow: false },
     };
 }
@@ -106,7 +106,7 @@ async function MemecoinPageContent({ params }: MemecoinPageProps) {
                     buyLogoURI={logoURI}
                     displayName={token.name}
                     description={
-                        'Memecoin discovered live via DexScreener. Unlike curated Tokens listings, this is an unmoderated market discovery — always do your own research before trading.'
+                        'Memecoin discovered live via DexScreener. Unlike curated Tokens listings, this is an unmoderated market discovery. Always do your own research before trading.'
                     }
                 />
             }

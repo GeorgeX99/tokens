@@ -203,13 +203,13 @@ export default async function SplTokenPage() {
                     aria-hidden
                 />
                 <p>
-                    Every tradeable asset on Solana is an SPL Token. Most new ones are memecoins. This site takes the
-                    Solana Foundation&apos;s Tokens stack, emptied of its ~300 canonical listings, and points it at{' '}
-                    <span className="text-text-medium font-medium">$SPL</span>. Host chain:{' '}
+                    The Foundation&apos;s Tokens registry listed ~300 verified assets and left memecoins out. This fork
+                    put them in the core index. <span className="text-text-medium font-medium">$SPL</span> is that
+                    truth, tokenized. Host chain:{' '}
                     <Link href="/solana" className="text-text-medium underline-offset-2 hover:underline">
                         Solana
                     </Link>
-                    . Long tail: memecoins.
+                    .
                 </p>
             </section>
         </TokenPageScaffold>

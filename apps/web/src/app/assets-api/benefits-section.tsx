@@ -3,7 +3,7 @@ import Image from 'next/image';
 const BENEFITS = [
     {
         title: 'Resolve any asset',
-        body: 'Every variant mint, mapped to one canonical asset. cbBTC, WBTC, tBTC — all resolve to Bitcoin.',
+        body: 'Every variant mint, mapped to one canonical asset. cbBTC, WBTC, tBTC: all resolve to Bitcoin.',
         image: '/landing/benefits/03.png',
         alt: 'Bitcoin card with 8+ variants',
     },
@@ -30,7 +30,7 @@ export function BenefitsSection() {
                         Skip the plumbing.
                     </h2>
                     <p className="flex-1 font-diatype-medium text-[length:var(--text-title-md)] leading-[var(--leading-snug)] tracking-[var(--tracking-tight)] text-text-low text-pretty">
-                        We verify assets, combine variants, and filter markets — so you don&rsquo;t have to.
+                        We verify assets, combine variants, and filter markets, so you don&rsquo;t have to.
                     </p>
                 </div>
 

@@ -38,9 +38,9 @@ const HERO_CHART_DURATION = '1h' as const;
 const HERO_CHART_DAYS = daysForMemecoinDuration(HERO_CHART_DURATION);
 const HERO_CHART_INTERVALS = intervalsForMemecoinDuration(HERO_CHART_DURATION);
 
-/** Hero copy: the idea first. Fork lore lives on /spl About. */
+/** Hero copy: the idea first. Full fork lore lives on /spl About. */
 const ABOUT_BLURB =
-    'Every tradeable asset on Solana is an SPL Token. Most of what people actually create are memecoins, even when official attention looks elsewhere. $SPL is that default, finally getting its shot.';
+    'SPL is Solana’s token standard. Most of what people build are memecoins. $SPL is that truth, tokenized.';
 
 function inferStartPriceFromPercentChange(currentPrice: number, percentChange: number): number | null {
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) return null;
@@ -297,24 +297,25 @@ export function FeaturedSplSection({
                 </div>
             </div>
 
-            <a
-                href="#memecoins"
+            <button
+                type="button"
                 aria-label="Scroll to explore"
                 className="absolute bottom-5 left-1/2 -translate-x-1/2 inline-flex flex-col items-center gap-1 text-text-low transition-colors hover:text-text-medium"
-                onClick={() =>
+                onClick={() => {
                     trackEvent('nav_link_clicked', {
                         destination: 'memecoins',
-                        link_url: '/#memecoins',
+                        link_url: '/',
                         source: 'home_hero_scroll',
-                    })
-                }
+                    });
+                    document.getElementById('memecoins')?.scrollIntoView({ behavior: 'smooth' });
+                }}
             >
                 <span className="text-[12px] font-medium tracking-wide">Explore</span>
                 <ChevronDown
                     className="size-5 animate-bounce motion-reduce:animate-none"
                     aria-hidden
                 />
-            </a>
+            </button>
         </section>
     );
 }

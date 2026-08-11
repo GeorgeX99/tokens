@@ -485,7 +485,7 @@ function CategoryTabsInner() {
                         <TokenTable
                             tokens={tableTokens}
                             categoryId={isTrending ? `trending:${trendingMode}` : activeCategoryId}
-                            trendingWindow={trendingWindow}
+                            trendingWindow={isMemecoins ? memecoinDuration : trendingWindow}
                             flushBottom={isMemecoins && memecoinHasMore}
                         />
                         {isMemecoins && memecoinHasMore ? (

@@ -165,7 +165,7 @@ export function MemecoinsTableBridge() {
 
             <HighlightsSection cards={highlights} chartDuration={duration} />
 
-            <TokenTable tokens={tokens} categoryId="memecoins" flushBottom />
+            <TokenTable tokens={tokens} categoryId="memecoins" trendingWindow={duration} flushBottom />
 
             {hasMore ? (
                 <div className="mx-auto max-w-7xl px-4 md:px-6 mt-4 mb-12 md:mb-20 flex flex-col items-center gap-2">
