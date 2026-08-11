@@ -81,7 +81,12 @@ async function MarketTable() {
 
 export function MemecoinsHomeSection() {
     return (
-        <section id="memecoins" className="scroll-mt-28 border-t border-gray-1400/10 pt-8 md:pt-10">
+        <section className="border-t border-gray-1400/10 pt-24 md:pt-28">
+            {/*
+              Anchor sits below the border + padding so Explore scrolls past the divider line.
+              scroll-mt clears the fixed header; padding above the anchor must exceed scroll-mt.
+            */}
+            <div id="memecoins" className="scroll-mt-20 md:scroll-mt-24" aria-hidden="true" />
             <Suspense fallback={<MarketTableSkeleton />}>
                 <MarketTable />
             </Suspense>

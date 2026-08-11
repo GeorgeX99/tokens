@@ -29,6 +29,7 @@
 
 /* Disable faux bold/italic synthesis so a missing variable-axis match never renders heavier than spec. */
 html {
+  scroll-behavior: smooth;
   font-synthesis-weight: none;
   font-synthesis-style: none;
   text-rendering: optimizeLegibility;
@@ -36,6 +37,12 @@ html {
   -moz-osx-font-smoothing: grayscale;
   font-optical-sizing: auto;
   font-size-adjust: 0.52;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 :root {

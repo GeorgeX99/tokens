@@ -230,7 +230,7 @@ export function FeaturedSplSection({
                             pulse={false}
                             momentum={false}
                             scrub={false}
-                            padding={[8, 8, 8, 8]}
+                            padding={{ top: 8, right: 8, bottom: 8, left: 8 }}
                             formatTime={() => ''}
                             tooltipY={-1000}
                             tooltipOutline={false}
@@ -299,7 +299,7 @@ export function FeaturedSplSection({
 
             <a
                 href="#memecoins"
-                aria-label="Scroll to memecoins"
+                aria-label="Scroll to explore"
                 className="absolute bottom-5 left-1/2 -translate-x-1/2 inline-flex flex-col items-center gap-1 text-text-low transition-colors hover:text-text-medium"
                 onClick={() =>
                     trackEvent('nav_link_clicked', {
@@ -309,7 +309,7 @@ export function FeaturedSplSection({
                     })
                 }
             >
-                <span className="text-[12px] font-medium tracking-wide">Memecoins</span>
+                <span className="text-[12px] font-medium tracking-wide">Explore</span>
                 <ChevronDown
                     className="size-5 animate-bounce motion-reduce:animate-none"
                     aria-hidden

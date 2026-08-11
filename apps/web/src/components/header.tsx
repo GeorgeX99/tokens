@@ -108,7 +108,7 @@ export function Header() {
                             })
                         }
                     >
-                        Memecoins
+                        Explore
                     </Link>
                     <a
                         href={SPL_TOKEN_BASICS_URL}
