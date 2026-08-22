@@ -22,7 +22,7 @@ function readPublicEnv(value: string | undefined): string {
     return (value ?? '').trim();
 }
 
-/** Optional mint once the memecoin is deployed. */
+/** Optional SPL token mint (CA). Set `NEXT_PUBLIC_SPL_MINT` in `apps/web/.env.local`. */
 export function getSplMint(): string | null {
     const mint = readPublicEnv(process.env.NEXT_PUBLIC_SPL_MINT);
     return mint.length > 0 ? mint : null;
